@@ -22,10 +22,18 @@ message(STATUS "Source Dir: ${CMAKE_CURRENT_SOURCE_DIR}")
 
 add_executable(AnimTrainer)
 
-target_sources(AnimTrainer PRIVATE
-        main.cpp
-)
-
 add_subdirectory(raylib)
 target_link_libraries(AnimTrainer PRIVATE raylib)
 target_include_directories(AnimTrainer PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/raygui/src")
+
+# each module will have its own subdir under src...
+# I call this module here, buts its not a C++ module. This is just a standard link target..
+add_subdirectory(src/camera)
+target_link_libraries(AnimTrainer PRIVATE Camera)
+add_subdirectory(src/math)
+target_link_libraries(AnimTrainer PRIVATE ATMath)
+
+
+target_sources(AnimTrainer PRIVATE
+        main.cpp
+)

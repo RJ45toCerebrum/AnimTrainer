@@ -1,40 +1,32 @@
 #include <iostream>
 #include <raylib.h>
 
-#define RAYGUI_IMPLEMENTATION
-#include "raygui.h"
+#include "ATCamera.h"
+
+constexpr static std::string_view TITLE = "AnimTrainer";
 
 int main(int argc, char *argv[])
 {
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
-    InitWindow(1920, 1080, "AnimTrainer - C++26 Classic");
+    InitWindow(1920, 1080, TITLE.data());
 
-    Camera camera = { 0 };
-    camera.position = Vector3{ 10.0f, 10.0f, 10.0f };
-    camera.target = Vector3{ 0.0f, 0.0f, 0.0f };
-    camera.up = Vector3{ 0.0f, 1.0f, 0.0f };
-    camera.fovy = 45.0f;
-    camera.projection = CAMERA_PERSPECTIVE;
+    ATCamera::CameraController cameraController;
 
     SetTargetFPS(60);
 
     while (!WindowShouldClose())
     {
-        UpdateCamera(&camera, CAMERA_FREE);
+        cameraController.Update();
         BeginDrawing();
         {
             ClearBackground(RAYWHITE);
             {
-                BeginMode3D(camera);
+                ATCamera::CameraRenderGuard cameraRenderGuard(cameraController);
                 {
                     DrawCube(Vector3{ 0, 0, 0 }, 2.0f, 2.0f, 2.0f, RED);
                     DrawCubeWires(Vector3{ 0, 0, 0 }, 2.0f, 2.0f, 2.0f, MAROON);
-                    DrawGrid(10, 1.0f);
+                    DrawGrid(30, 1.0f);
                 }
-                EndMode3D();
-            }
-            if (GuiButton(Rectangle{ 10, 10, 100, 30 }, "Reset Camera")) {
-                camera.position = Vector3{ 10.0f, 10.0f, 10.0f };
             }
         }
         EndDrawing();
