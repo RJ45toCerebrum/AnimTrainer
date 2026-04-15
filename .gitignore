@@ -32,38 +32,6 @@
 *.idb
 *.pdb
 
-### C++
-# Object files
-*.o
-*.obj
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Dynamic libraries
-*.so
-*.dylib
-*.dll
-
-# Static libraries
-*.a
-*.lib
-
-# Executables
-*.exe
-*.out
-
-# Linker output
-*.ilk
-*.map
-*.exp
-
-# Debug files
-*.dSYM/
-*.idb
-*.pdb
-
 ### Windows
 # Windows thumbnail cache files
 Thumbs.db
@@ -76,3 +44,6 @@ $RECYCLE.BIN/
 
 # Windows shortcuts
 *.lnk
+
+# CLion generated
+.idea
