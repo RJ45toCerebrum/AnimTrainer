@@ -51,6 +51,7 @@ int main(int argc, char *argv[])
 {
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(1920, 1080, TITLE.data());
+    DisableCursor();
 
     ATCamera::CameraController cameraController;
     Material gizmoMat = LoadMaterialDefault();

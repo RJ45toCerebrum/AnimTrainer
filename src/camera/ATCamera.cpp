@@ -35,9 +35,13 @@ Camera3D& CameraCon::GetCamera() const
 
 void CameraCon::Update()
 {
+    // probably should not do this here, but it works for now...
     if (IsKeyPressed(KeyboardKey::KEY_F))
     {
-        _camera->target = Vector3{0.0f, 0.0f, 0.0f};
+        if (IsCursorHidden())
+            EnableCursor();
+        else
+            DisableCursor();
     }
     UpdateCamera(_camera.get(), CAMERA_FREE);
 }
