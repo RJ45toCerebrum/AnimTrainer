@@ -1,7 +1,9 @@
 #include <iostream>
+#include <numbers>
 #include <raylib.h>
 
 #include "ATCamera.h"
+#include "ATMath.h"
 #include "raymath.h"
 #include "rlgl.h"
 
@@ -48,21 +50,19 @@ void DrawTransformGizmo(const Material& transformMat)
     DrawArrowGizmo(transformMat, origin, rotation);
 }
 
-
-
-
 // currently, I only deal with position and rotation;
 // Will add scale last...
-class TransormGizmo
+class TransformGizmo
 {
     Vector3 position = {0,0,0};
     Quaternion rotation = {0,0,0,1};
-    BoundingBox boundingBox = {Vector3{0,0,0}, {1,1,1}};
+    Vector3 hsize = {1.0f/2, 3, 1.0f/2};
 
 public:
     [[nodiscard]] Matrix GetCurrentTransform() const
     {
         constexpr Vector3 defaultScale = {1,1,1};
+        //return MatrixTranslate(position.x, position.y, position.z) * QuaternionToMatrix(rotation);
         return MatrixCompose(position, rotation, defaultScale);
     }
     [[nodiscard]] Vector3 GetPosition() const
@@ -72,6 +72,14 @@ public:
     void SetPosition(const Vector3& p)
     {
         this->position = p;
+    }
+    [[nodiscard]] Quaternion GetRotation() const
+    {
+        return this->rotation;
+    }
+    void SetRotation(const Quaternion& q)
+    {
+        this->rotation = q;
     }
 
     void DrawTransformGizmo(const Material& transformMat) const
@@ -99,14 +107,25 @@ public:
 
     void DrawBB() const
     {
-        const Matrix currentTMat = GetCurrentTransform();
-        rlPushMatrix();
-            rlMultMatrixf(&currentTMat.m0);
+        std::array<Vector3, 8> cubeCorners = ATMath::getCubeCorners(hsize);
+        for (auto& corner : cubeCorners)
+            corner = Vector3Transform(corner, GetCurrentTransform());
 
-            rlBegin(RL_LINES);
-                DrawBoundingBox(boundingBox, PURPLE);
-            rlEnd();
-        rlPopMatrix();
+        // Draw the 12 edges using DrawLine3D
+        // Back face
+        DrawLine3D(cubeCorners[0], cubeCorners[1], ORANGE);
+        DrawLine3D(cubeCorners[1], cubeCorners[2], ORANGE);
+        DrawLine3D(cubeCorners[2], cubeCorners[3], ORANGE);
+        DrawLine3D(cubeCorners[3], cubeCorners[0], ORANGE);
+        // Front face
+        DrawLine3D(cubeCorners[4], cubeCorners[5], ORANGE);
+        DrawLine3D(cubeCorners[5], cubeCorners[6], ORANGE);
+        DrawLine3D(cubeCorners[6], cubeCorners[7], ORANGE);
+        DrawLine3D(cubeCorners[7], cubeCorners[4], ORANGE);
+
+        // Connecting lines
+        for (int i = 0; i < 4; i++)
+            DrawLine3D(cubeCorners[i], cubeCorners[i + 4], ORANGE);
     }
 
     static void DrawArrowGizmo(const Material& arrowMaterial, const Vector3& position, const Matrix& rotation)
@@ -135,10 +154,11 @@ int main(int argc, char *argv[])
 
     ATCamera::CameraController cameraController;
     Material gizmoMat = LoadMaterialDefault();
-    std::unique_ptr<TransormGizmo> transformGizmo = std::make_unique<TransormGizmo>();
+    std::unique_ptr<TransformGizmo> transformGizmo = std::make_unique<TransformGizmo>();
 
     SetTargetFPS(60);
 
+    float cAngle = 0.0f;
     while (!WindowShouldClose())
     {
         cameraController.Update();
@@ -148,17 +168,26 @@ int main(int argc, char *argv[])
             {
                 ATCamera::CameraRenderGuard cameraRenderGuard(cameraController);
                 {
-                    const double deltaTime = GetTime();
+                    constexpr Vector3 axis(0,1,0);
+                    const double scaledTime = GetTime() * .5f;
+
+                    cAngle += GetFrameTime();
+                    if (cAngle > std::numbers::pi)
+                        cAngle = 0;
+
                     const Vector3 cPos {
-                        static_cast<float>(3 * std::cos(deltaTime)),
-                        static_cast<float>(3 * std::sin(deltaTime)),0
+                        static_cast<float>(3 * std::cos(scaledTime)),
+                        0,
+                        static_cast<float>(3 * std::sin(scaledTime))
                     };
+                    const Quaternion cRotar = QuaternionFromAxisAngle(axis, cAngle);
+                    transformGizmo->SetRotation(cRotar);
                     transformGizmo->SetPosition(cPos);
 
-                    transformGizmo->DrawTransformGizmo(gizmoMat);
                     transformGizmo->DrawBB();
+                    transformGizmo->DrawTransformGizmo(gizmoMat);
 
-                    DrawTransformGizmo(gizmoMat);
+                    //DrawTransformGizmo(gizmoMat);
                     DrawGrid(30, 1.0f);
                 }
             }

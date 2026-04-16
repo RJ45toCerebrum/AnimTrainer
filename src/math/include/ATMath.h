@@ -1,9 +1,15 @@
 // Created by Tyler on 4/15/2026.
 #pragma once
 #include <concepts>
+#include <array>
+
+#include "raymath.h"
 
 namespace ATMath
 {
+    constexpr static Vector3 VZERO{0,0,0};
+    constexpr static Vector3 VONE{1,1,1};
+
     // will templatize later....
     template<typename T>
     concept Number = std::floating_point<T> || std::integral<T>;
@@ -16,25 +22,6 @@ namespace ATMath
         {v.z} -> Number;
     };
 
-    struct Vector3D
-    {
-        int x = 0;
-        int y = 0;
-        int z = 0;
-    };
-
-    struct Vector4D
-    {
-        int x = 0;
-        int y = 0;
-        int z = 0;
-        int w = 0;
-    };
-
-    // Will templatize later...
-    Vector3D norm(const Vector3D& v);
-    Vector4D norm(const Vector4D& v);
-    double dot(const Vector3D& a, const Vector3D& b);
-    double dot(const Vector4D& v, const Vector3D& w);
+    std::array<Vector3,8> getCubeCorners(const Vector3& hSize);
 } // end ATMath
 
