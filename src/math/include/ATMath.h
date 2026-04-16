@@ -3,6 +3,7 @@
 #include <concepts>
 #include <array>
 
+#include "raylib.h"
 #include "raymath.h"
 
 namespace ATMath
@@ -22,6 +23,17 @@ namespace ATMath
         {v.z} -> Number;
     };
 
+    enum class Axis
+    {
+        None,
+        X,
+        Y,
+        Z,
+        W,
+    };
+
     std::array<Vector3,8> getCubeCorners(const Vector3& hSize);
+    float getPlaneRayIntersection(const Ray& ray, const Vector3& planePoint, const Vector3& planeNormal);
+    Vector3 evaluateRay(const Ray& ray, float param);
 } // end ATMath
 

@@ -34,9 +34,13 @@ void DrawArrowGizmo(const Material& arrowMaterial, const Vector3& position, cons
 class TransformGizmo
 {
     Vector3 position = {0,0,0};
-    Quaternion rotation = {0,0,0,1};
+    Quaternion rotation = {0, 0, 0, 1};
     // bounding box / extents
     Vector3 hsize = {1, 1, 1};
+
+    // will delete at some point
+    ATMath::Axis selectedAxis = ATMath::Axis::None;
+
 
 public:
     [[nodiscard]] Matrix GetCurrentTransform() const
@@ -69,18 +73,35 @@ public:
     {
         this->rotation = q;
     }
+    void SetSelected(const ATMath::Axis selAxis)
+    {
+        this->selectedAxis = selAxis;
+    }
+
+    [[nodiscard]] std::tuple<Vector3,Vector3,Vector3> GetWorldAxes() const
+    {
+        const Matrix rot = QuaternionToMatrix(rotation);
+        const Vector3 right{rot.m0, rot.m1, rot.m2};
+        const Vector3 up{rot.m4, rot.m5, rot.m6};
+        const Vector3 forward{rot.m8, rot.m9, rot.m10};
+        return {right, up, forward};
+    }
 
     void DrawTransformGizmo(const Material& transformMat) const
     {
         constexpr Vector3 origin{0,0,0};
+        constexpr Color upAxisColor{83, 189, 116, 255};
+        constexpr Color selectedColor = PURPLE;
 
-        // draw up arrow (yellow)
-        transformMat.maps[MATERIAL_MAP_DIFFUSE].color = YELLOW;
+        // draw up arrow (yellow) //rgb(83, 189, 116)
+        transformMat.maps[MATERIAL_MAP_DIFFUSE].color =
+            selectedAxis == ATMath::Axis::Y ? selectedColor : upAxisColor;
         const Matrix currentTMat = GetCurrentTransform();
         DrawArrowGizmo(transformMat, origin, currentTMat);
 
         // draw x-axis arrow (red)
-        transformMat.maps[MATERIAL_MAP_DIFFUSE].color = RED;
+        transformMat.maps[MATERIAL_MAP_DIFFUSE].color =
+            selectedAxis == ATMath::Axis::X ? selectedColor : RED;
         Vector3 axis{0,0,1};
         const Matrix redArrowMat = MatrixRotate(axis, -90 * DEG2RAD) * currentTMat;
         DrawArrowGizmo(transformMat, origin, redArrowMat);
@@ -92,7 +113,6 @@ public:
         const Matrix blueArrowMat = MatrixRotate(axis, 90 * DEG2RAD) * currentTMat;
         DrawArrowGizmo(transformMat, origin, blueArrowMat);
     }
-
     void DrawBB() const
     {
         std::array<Vector3, 8> cubeCorners = ATMath::getCubeCorners(hsize);
@@ -157,16 +177,42 @@ RayCollision GetRayCollisionOBB(const Ray& worldRay, const Matrix& transform, co
     return collision;
 }
 
-void RayCollisionLogic(const ATCamera::CameraController& cameraController, const TransformGizmo& transformGizmo)
+void RayCollisionLogic(const ATCamera::CameraController& cameraController, TransformGizmo& transformGizmo)
 {
+    transformGizmo.SetSelected(ATMath::Axis::None);
     const Matrix ct = transformGizmo.GetCurrentTransform();
     const Vector3 extents = transformGizmo.GetExtents();
-    const RayCollision rayCol = GetRayCollisionOBB(cameraController.GetWorldMouseRay(), ct, extents);
+    const Ray mRay = cameraController.GetWorldMouseRay();
+    const RayCollision rayCol = GetRayCollisionOBB(mRay, ct, extents);
     if (rayCol.hit)
     {
-        static long dope = 0;
-        std::cout << "HIT: " << dope << std::endl;
-        dope++;
+        //x-y plane
+        const auto [right, up, forward] = transformGizmo.GetWorldAxes();
+        const Vector3 planePos = transformGizmo.GetPosition();
+        float rayParam = ATMath::getPlaneRayIntersection(mRay, planePos, right);
+        // dot(right, rPlaneIntersec) = 0
+        const Vector3 rPlaneIntersec = ATMath::evaluateRay(mRay, rayParam);
+
+        rayParam = ATMath::getPlaneRayIntersection(mRay, planePos, up);
+        // dot(up, uPlaneIntersec) = 0
+        const Vector3 uPlaneIntersec = ATMath::evaluateRay(mRay, rayParam);
+
+        rayParam = ATMath::getPlaneRayIntersection(mRay, planePos, forward);
+        // dot(forward, fPlaneIntersec) = 0
+        const Vector3 fPlaneIntersec = ATMath::evaluateRay(mRay, rayParam);
+
+        // now we find the closest arrow
+        const Vector3 upScaler = up * Vector3DotProduct(fPlaneIntersec - planePos, up);
+        const Vector3 rightScaler = right * Vector3DotProduct(fPlaneIntersec - planePos, right);
+        if (Vector3DotProduct(upScaler, upScaler) > Vector3DotProduct(rightScaler, rightScaler))
+            transformGizmo.SetSelected(ATMath::Axis::Y);
+        else
+            transformGizmo.SetSelected(ATMath::Axis::X);
+
+        DrawSphere(fPlaneIntersec, 0.02f, YELLOW);
+        DrawLine3D(planePos, fPlaneIntersec, GREEN);
+        DrawLine3D(fPlaneIntersec, upScaler, PURPLE);
+        DrawLine3D(fPlaneIntersec, rightScaler, PURPLE);
     }
 }
 
