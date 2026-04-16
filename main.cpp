@@ -28,27 +28,6 @@ void DrawArrowGizmo(const Material& arrowMaterial, const Vector3& position, cons
     DrawMesh(coneMesh, arrowMaterial, coneFinal);
 }
 
-void DrawTransformGizmo(const Material& transformMat)
-{
-    constexpr Vector3 origin{0,0,0};
-
-    // draw up arrow (yellow)
-    transformMat.maps[MATERIAL_MAP_DIFFUSE].color = YELLOW;
-    DrawArrowGizmo(transformMat, origin, MatrixIdentity());
-
-    // draw x-axis arrow (red)
-    transformMat.maps[MATERIAL_MAP_DIFFUSE].color = RED;
-    Vector3 axis{0,0,1};
-    Matrix rotation = MatrixRotate(axis, -90 * DEG2RAD);
-    DrawArrowGizmo(transformMat, origin, rotation);
-
-    // Draw z-axis (blue)
-    transformMat.maps[MATERIAL_MAP_DIFFUSE].color = BLUE;
-    axis.z = 0;
-    axis.x = 1;
-    rotation = MatrixRotate(axis, 90 * DEG2RAD);
-    DrawArrowGizmo(transformMat, origin, rotation);
-}
 
 // currently, I only deal with position and rotation;
 // Will add scale last...
@@ -56,7 +35,8 @@ class TransformGizmo
 {
     Vector3 position = {0,0,0};
     Quaternion rotation = {0,0,0,1};
-    Vector3 hsize = {1.0f/2, 3, 1.0f/2};
+    // bounding box / extents
+    Vector3 hsize = {1, 1, 1};
 
 public:
     [[nodiscard]] Matrix GetCurrentTransform() const
@@ -72,6 +52,14 @@ public:
     void SetPosition(const Vector3& p)
     {
         this->position = p;
+    }
+    [[nodiscard]] Vector3 GetExtents() const
+    {
+        return this->hsize;
+    }
+    void SetExtents(const Vector3& extents)
+    {
+        this->hsize = extents;
     }
     [[nodiscard]] Quaternion GetRotation() const
     {
@@ -146,6 +134,63 @@ public:
     }
 };
 
+RayCollision GetRayCollisionOBB(const Ray& worldRay, const Matrix& transform, const Vector3& size)
+{
+    const BoundingBox localBox =
+    {
+        Vector3{-size.x, -size.y, -size.z},
+        Vector3{size.x,  size.y,  size.z}
+    };
+
+    Matrix invTransform = MatrixInvert(transform);
+
+    Ray localRay;
+    localRay.position = Vector3Transform(worldRay.position, invTransform);
+    invTransform.m12 = invTransform.m13 = invTransform.m14 = 0.0f;
+    localRay.direction = Vector3Transform(worldRay.direction, invTransform);
+
+    RayCollision collision = GetRayCollisionBox(localRay, localBox);
+    if (collision.hit) {
+        // Note: 'distance' remains correct if your scale is uniform (1,1,1)
+        collision.point = Vector3Transform(collision.point, transform);
+    }
+    return collision;
+}
+
+void RayCollisionLogic(const ATCamera::CameraController& cameraController, const TransformGizmo& transformGizmo)
+{
+    const Matrix ct = transformGizmo.GetCurrentTransform();
+    const Vector3 extents = transformGizmo.GetExtents();
+    const RayCollision rayCol = GetRayCollisionOBB(cameraController.GetWorldMouseRay(), ct, extents);
+    if (rayCol.hit)
+    {
+        static long dope = 0;
+        std::cout << "HIT: " << dope << std::endl;
+        dope++;
+    }
+}
+
+void UpdateGizmo(float& cAngle, TransformGizmo& tGiz)
+{
+    constexpr Vector3 axis(0,1,0);
+    const double scaledTime = GetTime() * .5f;
+
+    cAngle += GetFrameTime();
+    if (cAngle > std::numbers::pi)
+        cAngle = 0;
+
+    const Vector3 cPos {
+        static_cast<float>(3 * std::cos(scaledTime)),
+        0,
+        static_cast<float>(3 * std::sin(scaledTime))
+    };
+    const Quaternion cRotar = QuaternionFromAxisAngle(axis, cAngle);
+    tGiz.SetRotation(cRotar);
+    tGiz.SetPosition(cPos);
+}
+
+
+
 int main(int argc, char *argv[])
 {
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
@@ -168,26 +213,14 @@ int main(int argc, char *argv[])
             {
                 ATCamera::CameraRenderGuard cameraRenderGuard(cameraController);
                 {
-                    constexpr Vector3 axis(0,1,0);
-                    const double scaledTime = GetTime() * .5f;
+                    TransformGizmo& tGiz = *transformGizmo;
+                    //UpdateGizmo(cAngle, tGiz);
 
-                    cAngle += GetFrameTime();
-                    if (cAngle > std::numbers::pi)
-                        cAngle = 0;
+                    tGiz.DrawBB();
+                    tGiz.DrawTransformGizmo(gizmoMat);
 
-                    const Vector3 cPos {
-                        static_cast<float>(3 * std::cos(scaledTime)),
-                        0,
-                        static_cast<float>(3 * std::sin(scaledTime))
-                    };
-                    const Quaternion cRotar = QuaternionFromAxisAngle(axis, cAngle);
-                    transformGizmo->SetRotation(cRotar);
-                    transformGizmo->SetPosition(cPos);
-
-                    transformGizmo->DrawBB();
-                    transformGizmo->DrawTransformGizmo(gizmoMat);
-
-                    //DrawTransformGizmo(gizmoMat);
+                    // lets shoot a ray
+                    RayCollisionLogic(cameraController, tGiz);
                     DrawGrid(30, 1.0f);
                 }
             }
@@ -196,7 +229,6 @@ int main(int argc, char *argv[])
     }
 
     UnloadMaterial(gizmoMat);
-
     CloseWindow();
     return 0;
 }

@@ -31,6 +31,7 @@ namespace ATCamera
         CameraController& operator=(const CameraController&) = delete;
 
         [[nodiscard]] Camera3D& GetCamera() const;
+        [[nodiscard]] Ray GetWorldMouseRay() const;
 
         void Update();
     };

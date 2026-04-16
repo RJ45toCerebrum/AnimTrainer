@@ -58,3 +58,9 @@ CamGuard::~CameraRenderGuard()
     EndMode3D();
 }
 
+Ray CameraCon::GetWorldMouseRay() const
+{
+    Camera3D& cam3D = GetCamera();
+    return GetScreenToWorldRay(GetMousePosition(), cam3D);
+}
+
