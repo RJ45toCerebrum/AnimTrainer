@@ -1,5 +1,6 @@
 // Created by Tyler on 4/15/2026.
 #pragma once
+
 #include <concepts>
 #include <array>
 
@@ -38,5 +39,9 @@ namespace ATMath
     std::array<Vector3,8> getCubeCorners(const Vector3& hSize);
     float getPlaneRayIntersection(const Ray& ray, const Vector3& planePoint, const Vector3& planeNormal);
     Vector3 evaluateRay(const Ray& ray, float param);
+
+    // will only yield proper results of ray dir is is normalized...
+    Vector3 closestPointAlongRay(const Ray& ray, const Vector3& point);
+    Vector2 getClosestPointsParams(const Ray& ray0, const Ray& ray1);
 } // end ATMath
 

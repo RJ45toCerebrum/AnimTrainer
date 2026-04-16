@@ -25,8 +25,9 @@ add_executable(AnimTrainer)
 add_subdirectory(raylib)
 target_link_libraries(AnimTrainer PRIVATE raylib)
 
-target_include_directories(AnimTrainer PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/raygui/src")
+
 target_include_directories(AnimTrainer PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_include_directories(AnimTrainer PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/raygui/src")
 target_include_directories(AnimTrainer PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/random")
 
 # each module will have its own subdir under src...

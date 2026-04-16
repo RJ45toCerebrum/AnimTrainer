@@ -109,7 +109,9 @@ public:
         DrawArrowGizmo(transformMat, origin, redArrowMat);
 
         // Draw z-axis (blue)
-        transformMat.maps[MATERIAL_MAP_DIFFUSE].color = BLUE;
+        transformMat.maps[MATERIAL_MAP_DIFFUSE].color =
+            selectedAxis == ATMath::Axis::Z ? selectedColor : BLUE;
+
         axis.z = 0;
         axis.x = 1;
         const Matrix blueArrowMat = MatrixRotate(axis, 90 * DEG2RAD) * currentTMat;
@@ -141,7 +143,7 @@ public:
     static void DrawArrowGizmo(const Material& arrowMaterial, const Vector3& position, const Matrix& rotation)
     {
         const static Mesh coneMesh = GenMeshCone(1.33f, 3, 15);
-        const static Mesh cylinderMesh = GenMeshCylinder(0.03, 1, 15);
+        const static Mesh cylinderMesh = GenMeshCylinder(0.01, 1, 15);
 
         const Matrix T = MatrixTranslate(position.x, position.y, position.z);
         const Matrix M = MatrixMultiply(rotation, T);
@@ -149,7 +151,7 @@ public:
         // arrow body
         DrawMesh(cylinderMesh, arrowMaterial, M);
 
-        const Matrix coneLocal = MatrixScale(0.1f, 0.1f, 0.1f) * MatrixTranslate(0, 1, 0);
+        const Matrix coneLocal = MatrixScale(0.02f, 0.02f, 0.02f) * MatrixTranslate(0, 1, 0);
         const Matrix coneFinal = MatrixMultiply(coneLocal, M);
         // arrow head
         DrawMesh(coneMesh, arrowMaterial, coneFinal);
@@ -186,58 +188,31 @@ void RayCollisionLogic(const ATCamera::CameraController& cameraController, Trans
     const Vector3 extents = transformGizmo.GetExtents();
     const Ray mRay = cameraController.GetWorldMouseRay();
     const RayCollision rayCol = GetRayCollisionOBB(mRay, ct, extents);
-    if (rayCol.hit)
-    {
-        //x-y plane
-        const auto [right, up, forward] = transformGizmo.GetWorldAxes();
-        const Vector3 planePos = transformGizmo.GetPosition();
-        float rayParam = ATMath::getPlaneRayIntersection(mRay, planePos, right);
-        // dot(right, rPlaneIntersec) = 0
-        const Vector3 rPlaneIntersec = ATMath::evaluateRay(mRay, rayParam);
+    if (not rayCol.hit)
+        return;
 
-        rayParam = ATMath::getPlaneRayIntersection(mRay, planePos, up);
-        // dot(up, uPlaneIntersec) = 0
-        const Vector3 uPlaneIntersec = ATMath::evaluateRay(mRay, rayParam);
+    const auto [right, up, forward] = transformGizmo.GetWorldAxes();
+    const Vector3 tp = transformGizmo.GetPosition();
+    const Ray xRay{tp, right};
+    const Ray yRay{tp, up};
+    const Ray zRay{tp, forward};
 
-        rayParam = ATMath::getPlaneRayIntersection(mRay, planePos, forward);
-        // dot(forward, fPlaneIntersec) = 0
-        const Vector3 fPlaneIntersec = ATMath::evaluateRay(mRay, rayParam);
+    const Vector2 paramsXAxis = ATMath::getClosestPointsParams(mRay, xRay);
+    const Vector3 xAxisClosestPointsVector = ATMath::evaluateRay(mRay, paramsXAxis.x) - ATMath::evaluateRay(xRay, paramsXAxis.y);
+    const float xLength = Vector3LengthSqr(xAxisClosestPointsVector);
 
-        // now we find the closest arrow
-        Vector3 upScaler = up * Vector3DotProduct(fPlaneIntersec - planePos, up);
-        Vector3 rightScaler = right * Vector3DotProduct(fPlaneIntersec - planePos, right);
+    const Vector2 paramsYAxis = ATMath::getClosestPointsParams(mRay, yRay);
+    const Vector3 yAxisClosestPointsVector = ATMath::evaluateRay(mRay, paramsYAxis.x) - ATMath::evaluateRay(yRay, paramsYAxis.y);
+    const float yLength = Vector3LengthSqr(yAxisClosestPointsVector);
 
-        float upDot = Vector3DotProduct(upScaler, upScaler);
-        float rightDot = Vector3DotProduct(rightScaler, rightScaler);
-        if (upDot > rightDot)
-        {
-            transformGizmo.SetSelected(ATMath::Axis::Y);
-            upScaler = up * Vector3DotProduct(rPlaneIntersec - planePos, up);
-            upDot = Vector3DotProduct(upScaler, upScaler);
-            Vector3 forwardScaler = forward * Vector3DotProduct(rPlaneIntersec - planePos, forward);
-            const float fDot = Vector3DotProduct(forwardScaler, forwardScaler);
-            if (upDot > fDot)
-            {
-                transformGizmo.SetSelected(ATMath::Axis::Z);
-            }
-        }
-        else
-        {
-            transformGizmo.SetSelected(ATMath::Axis::X);
+    const Vector2 paramsZAxis = ATMath::getClosestPointsParams(mRay, zRay);
+    const Vector3 zAxisClosestPointsVector = ATMath::evaluateRay(mRay, paramsZAxis.x) - ATMath::evaluateRay(zRay, paramsZAxis.y);
+    const float zLength = Vector3LengthSqr(zAxisClosestPointsVector);
 
-            rightScaler = right * Vector3DotProduct(uPlaneIntersec - planePos, right);
-            rightDot = Vector3DotProduct(rightScaler, rightScaler);
-            Vector3 forwardScaler = forward * Vector3DotProduct(uPlaneIntersec - planePos, forward);
-            const float fDot = Vector3DotProduct(forwardScaler, forwardScaler);
-            if (rightDot > fDot)
-                transformGizmo.SetSelected(ATMath::Axis::Z);
-        }
-
-        DrawSphere(uPlaneIntersec, 0.02f, YELLOW);
-        DrawLine3D(planePos, uPlaneIntersec, GREEN);
-        //DrawLine3D(fPlaneIntersec, upScaler, PURPLE);
-        //DrawLine3D(fPlaneIntersec, rightScaler, PURPLE);
-    }
+    if (xLength < yLength)
+        transformGizmo.SetSelected(zLength < xLength ? ATMath::Axis::Z : ATMath::Axis::X);
+    else
+        transformGizmo.SetSelected(zLength < yLength ? ATMath::Axis::Z : ATMath::Axis::Y);
 }
 
 void UpdateGizmo(float& cAngle, TransformGizmo& tGiz)
@@ -258,37 +233,6 @@ void UpdateGizmo(float& cAngle, TransformGizmo& tGiz)
     tGiz.SetRotation(cRotar);
     tGiz.SetPosition(cPos);
 }
-
-
-void RandomPointMotionTest(Vector3& debugSphereCurPos, Vector3& debugSphereEndPos)
-{
-    Vector3 rayDir(.2,-.333f,-1);
-    rayDir = Vector3Normalize(rayDir);
-    Ray ray(Vector3(0,1,3), rayDir);
-
-    const Vector3 moveToward = debugSphereEndPos - debugSphereCurPos;
-    if (Vector3DotProduct(moveToward, moveToward) < 0.03f)
-    {
-        debugSphereEndPos = ATMath::UP + ATRandom::randomUnitCubeVector();
-    }
-    else
-    {
-        const float dt = GetFrameTime();
-        debugSphereCurPos += moveToward * dt;
-    }
-
-    // perform closest point
-    const Vector3 toRayPos = ray.position - debugSphereCurPos;
-    const float parallel = Vector3DotProduct(toRayPos, ray.direction);
-    const Vector3 perpPoint = debugSphereCurPos + toRayPos - ray.direction * parallel;
-
-    DrawLine3D(ray.position, ATMath::evaluateRay(ray, 5), GREEN);
-    DrawSphere(debugSphereCurPos, 0.02f, GREEN);
-
-    DrawLine3D(debugSphereCurPos, perpPoint, GREEN);
-    DrawSphere(perpPoint, 0.02f, PURPLE);
-}
-
 
 
 int main(int argc, char *argv[])
@@ -319,13 +263,11 @@ int main(int argc, char *argv[])
                     TransformGizmo& tGiz = *transformGizmo;
                     //UpdateGizmo(cAngle, tGiz);
 
-                    //tGiz.DrawBB();
+                    tGiz.DrawBB();
                     tGiz.DrawTransformGizmo(gizmoMat);
 
                     // lets shoot a ray
-                    //RayCollisionLogic(cameraController, tGiz);
-
-                    RandomPointMotionTest(curSpherePos, curSphereEndPos);
+                    RayCollisionLogic(cameraController, tGiz);
 
                     DrawGrid(30, 1.0f);
                 }
