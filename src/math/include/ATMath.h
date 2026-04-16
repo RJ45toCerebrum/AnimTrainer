@@ -10,6 +10,9 @@ namespace ATMath
 {
     constexpr static Vector3 VZERO{0,0,0};
     constexpr static Vector3 VONE{1,1,1};
+    constexpr static Vector3 RIGHT{1,0,0};
+    constexpr static Vector3 UP{0,1,0};
+    constexpr static Vector3 FORWARD{0,0,1};
 
     // will templatize later....
     template<typename T>

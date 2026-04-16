@@ -4,6 +4,8 @@
 
 #include "ATCamera.h"
 #include "ATMath.h"
+#include "ATRandom.h"
+
 #include "raymath.h"
 #include "rlgl.h"
 
@@ -202,17 +204,39 @@ void RayCollisionLogic(const ATCamera::CameraController& cameraController, Trans
         const Vector3 fPlaneIntersec = ATMath::evaluateRay(mRay, rayParam);
 
         // now we find the closest arrow
-        const Vector3 upScaler = up * Vector3DotProduct(fPlaneIntersec - planePos, up);
-        const Vector3 rightScaler = right * Vector3DotProduct(fPlaneIntersec - planePos, right);
-        if (Vector3DotProduct(upScaler, upScaler) > Vector3DotProduct(rightScaler, rightScaler))
+        Vector3 upScaler = up * Vector3DotProduct(fPlaneIntersec - planePos, up);
+        Vector3 rightScaler = right * Vector3DotProduct(fPlaneIntersec - planePos, right);
+
+        float upDot = Vector3DotProduct(upScaler, upScaler);
+        float rightDot = Vector3DotProduct(rightScaler, rightScaler);
+        if (upDot > rightDot)
+        {
             transformGizmo.SetSelected(ATMath::Axis::Y);
+            upScaler = up * Vector3DotProduct(rPlaneIntersec - planePos, up);
+            upDot = Vector3DotProduct(upScaler, upScaler);
+            Vector3 forwardScaler = forward * Vector3DotProduct(rPlaneIntersec - planePos, forward);
+            const float fDot = Vector3DotProduct(forwardScaler, forwardScaler);
+            if (upDot > fDot)
+            {
+                transformGizmo.SetSelected(ATMath::Axis::Z);
+            }
+        }
         else
+        {
             transformGizmo.SetSelected(ATMath::Axis::X);
 
-        DrawSphere(fPlaneIntersec, 0.02f, YELLOW);
-        DrawLine3D(planePos, fPlaneIntersec, GREEN);
-        DrawLine3D(fPlaneIntersec, upScaler, PURPLE);
-        DrawLine3D(fPlaneIntersec, rightScaler, PURPLE);
+            rightScaler = right * Vector3DotProduct(uPlaneIntersec - planePos, right);
+            rightDot = Vector3DotProduct(rightScaler, rightScaler);
+            Vector3 forwardScaler = forward * Vector3DotProduct(uPlaneIntersec - planePos, forward);
+            const float fDot = Vector3DotProduct(forwardScaler, forwardScaler);
+            if (rightDot > fDot)
+                transformGizmo.SetSelected(ATMath::Axis::Z);
+        }
+
+        DrawSphere(uPlaneIntersec, 0.02f, YELLOW);
+        DrawLine3D(planePos, uPlaneIntersec, GREEN);
+        //DrawLine3D(fPlaneIntersec, upScaler, PURPLE);
+        //DrawLine3D(fPlaneIntersec, rightScaler, PURPLE);
     }
 }
 
@@ -236,6 +260,36 @@ void UpdateGizmo(float& cAngle, TransformGizmo& tGiz)
 }
 
 
+void RandomPointMotionTest(Vector3& debugSphereCurPos, Vector3& debugSphereEndPos)
+{
+    Vector3 rayDir(.2,-.333f,-1);
+    rayDir = Vector3Normalize(rayDir);
+    Ray ray(Vector3(0,1,3), rayDir);
+
+    const Vector3 moveToward = debugSphereEndPos - debugSphereCurPos;
+    if (Vector3DotProduct(moveToward, moveToward) < 0.03f)
+    {
+        debugSphereEndPos = ATMath::UP + ATRandom::randomUnitCubeVector();
+    }
+    else
+    {
+        const float dt = GetFrameTime();
+        debugSphereCurPos += moveToward * dt;
+    }
+
+    // perform closest point
+    const Vector3 toRayPos = ray.position - debugSphereCurPos;
+    const float parallel = Vector3DotProduct(toRayPos, ray.direction);
+    const Vector3 perpPoint = debugSphereCurPos + toRayPos - ray.direction * parallel;
+
+    DrawLine3D(ray.position, ATMath::evaluateRay(ray, 5), GREEN);
+    DrawSphere(debugSphereCurPos, 0.02f, GREEN);
+
+    DrawLine3D(debugSphereCurPos, perpPoint, GREEN);
+    DrawSphere(perpPoint, 0.02f, PURPLE);
+}
+
+
 
 int main(int argc, char *argv[])
 {
@@ -249,24 +303,30 @@ int main(int argc, char *argv[])
 
     SetTargetFPS(60);
 
+    constexpr Color backgroundColor(84, 82, 77, 255);
     float cAngle = 0.0f;
+    Vector3 curSpherePos(0,0,0);
+    Vector3 curSphereEndPos(1,1,1);
     while (!WindowShouldClose())
     {
         cameraController.Update();
         BeginDrawing();
         {
-            ClearBackground(RAYWHITE);
+            ClearBackground(backgroundColor);
             {
                 ATCamera::CameraRenderGuard cameraRenderGuard(cameraController);
                 {
                     TransformGizmo& tGiz = *transformGizmo;
                     //UpdateGizmo(cAngle, tGiz);
 
-                    tGiz.DrawBB();
+                    //tGiz.DrawBB();
                     tGiz.DrawTransformGizmo(gizmoMat);
 
                     // lets shoot a ray
-                    RayCollisionLogic(cameraController, tGiz);
+                    //RayCollisionLogic(cameraController, tGiz);
+
+                    RandomPointMotionTest(curSpherePos, curSphereEndPos);
+
                     DrawGrid(30, 1.0f);
                 }
             }
