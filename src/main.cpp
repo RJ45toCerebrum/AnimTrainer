@@ -240,6 +240,7 @@ void randomizeTransformGizmo(TransformGizmo& tGiz)
 }
 
 
+
 int main(int argc, char *argv[])
 {
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
