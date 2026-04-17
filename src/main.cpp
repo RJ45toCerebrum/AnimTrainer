@@ -7,42 +7,22 @@
 #include "ATRandom.h"
 
 #include "raymath.h"
-#include "rlgl.h"
 
 
 constexpr static std::string_view TITLE = "AnimTrainer";
-
-
-void DrawArrowGizmo(const Material& arrowMaterial, const Vector3& position, const Matrix& rotation)
-{
-    const static Mesh coneMesh = GenMeshCone(1.33f, 3, 15);
-    const static Mesh cylinderMesh = GenMeshCylinder(0.03, 1, 15);
-
-    const Matrix T = MatrixTranslate(position.x, position.y, position.z);
-    const Matrix M = MatrixMultiply(rotation, T);
-
-    // arrow body
-    DrawMesh(cylinderMesh, arrowMaterial, M);
-
-    const Matrix coneLocal = MatrixScale(0.1f, 0.1f, 0.1f) * MatrixTranslate(0, 1, 0);
-    const Matrix coneFinal = MatrixMultiply(coneLocal, M);
-    // arrow head
-    DrawMesh(coneMesh, arrowMaterial, coneFinal);
-}
-
 
 // currently, I only deal with position and rotation;
 // Will add scale last...
 class TransformGizmo
 {
-    Vector3 position = {0,0,0};
+    Vector3 position = {1,2,3};
     Quaternion rotation = {0, 0, 0, 1};
     // bounding box / extents
     Vector3 hsize = {1, 1, 1};
 
     // will delete at some point
     ATMath::Axis selectedAxis = ATMath::Axis::None;
-
+    Vector3 lastAxisPosition = ATMath::VZERO;
 
 public:
     [[nodiscard]] Matrix GetCurrentTransform() const
@@ -79,7 +59,6 @@ public:
     {
         this->selectedAxis = selAxis;
     }
-
     [[nodiscard]] std::tuple<Vector3,Vector3,Vector3> GetWorldAxes() const
     {
         const Matrix rot = QuaternionToMatrix(rotation);
@@ -89,6 +68,79 @@ public:
         return {right, up, forward};
     }
 
+    void Update(const ATCamera::CameraController& cameraController)
+    {
+        // this primarilly just selects axis to highlight
+        SetSelected(ATMath::Axis::None);
+        const Matrix ct = GetCurrentTransform();
+        const Vector3 extents = GetExtents();
+        const Ray mRay = cameraController.GetWorldMouseRay();
+        const RayCollision rayCol = ATMath::getRayCollisionOBB(mRay, ct, extents);
+        if (not rayCol.hit)
+            return;
+
+        const auto [right, up, forward] = GetWorldAxes();
+        const Vector3 curGizmoPos = GetPosition();
+        const Ray xRay{curGizmoPos, right};
+        const Ray yRay{curGizmoPos, up};
+        const Ray zRay{curGizmoPos, forward};
+
+        const Vector2 paramsXAxis = ATMath::getClosestPointsParams(mRay, xRay);
+        const Vector3 cpOnXAxis = ATMath::evaluateRay(xRay, paramsXAxis.y);
+        const Vector3 xAxisClosestPointsVector = ATMath::evaluateRay(mRay, paramsXAxis.x) - cpOnXAxis;
+        const float xLength = Vector3LengthSqr(xAxisClosestPointsVector);
+
+        const Vector2 paramsYAxis = ATMath::getClosestPointsParams(mRay, yRay);
+        const Vector3 cpOnYAxis = ATMath::evaluateRay(yRay, paramsYAxis.y);
+        const Vector3 yAxisClosestPointsVector = ATMath::evaluateRay(mRay, paramsYAxis.x) - cpOnYAxis;
+        const float yLength = Vector3LengthSqr(yAxisClosestPointsVector);
+
+        const Vector2 paramsZAxis = ATMath::getClosestPointsParams(mRay, zRay);
+        const Vector3 cpOnZAxis = ATMath::evaluateRay(zRay, paramsZAxis.y);
+        const Vector3 zAxisClosestPointsVector = ATMath::evaluateRay(mRay, paramsZAxis.x) - cpOnZAxis;
+        const float zLength = Vector3LengthSqr(zAxisClosestPointsVector);
+
+        Vector3 closestAxisPoint = ATMath::VZERO;
+        if (xLength < yLength)
+        {
+            if (zLength < xLength)
+            {
+                SetSelected(ATMath::Axis::Z);
+                closestAxisPoint = cpOnZAxis;
+            }
+            else
+            {
+                SetSelected(ATMath::Axis::X);
+                closestAxisPoint = cpOnXAxis;
+            }
+        }
+        else
+        {
+            if (zLength < yLength)
+            {
+                SetSelected(ATMath::Axis::Z);
+                closestAxisPoint = cpOnZAxis;
+            }
+            else
+            {
+                SetSelected(ATMath::Axis::Y);
+                closestAxisPoint = cpOnYAxis;
+            }
+        }
+
+        // regardless of whether an axis is selected, we will need to keep track of the closest closestAxisPoint
+        // so the movement does not jump... This is why I just rest it here...
+        if (std::ranges::min({xLength, zLength, yLength}) > 0.005f)
+            SetSelected(ATMath::Axis::None);
+
+        DrawSphere(closestAxisPoint, 0.03f, GREEN);
+        if (IsMouseButtonDown(MouseButton::MOUSE_BUTTON_LEFT))
+        {
+            Vector3 newGizmoPos = curGizmoPos + (closestAxisPoint - lastAxisPosition);
+            SetPosition(newGizmoPos);
+        }
+        lastAxisPosition = closestAxisPoint;
+    }
     void DrawTransformGizmo(const Material& transformMat) const
     {
         constexpr Vector3 origin{0,0,0};
@@ -158,63 +210,6 @@ public:
     }
 };
 
-RayCollision GetRayCollisionOBB(const Ray& worldRay, const Matrix& transform, const Vector3& size)
-{
-    const BoundingBox localBox =
-    {
-        Vector3{-size.x, -size.y, -size.z},
-        Vector3{size.x,  size.y,  size.z}
-    };
-
-    Matrix invTransform = MatrixInvert(transform);
-
-    Ray localRay;
-    localRay.position = Vector3Transform(worldRay.position, invTransform);
-    invTransform.m12 = invTransform.m13 = invTransform.m14 = 0.0f;
-    localRay.direction = Vector3Transform(worldRay.direction, invTransform);
-
-    RayCollision collision = GetRayCollisionBox(localRay, localBox);
-    if (collision.hit) {
-        // Note: 'distance' remains correct if your scale is uniform (1,1,1)
-        collision.point = Vector3Transform(collision.point, transform);
-    }
-    return collision;
-}
-
-void RayCollisionLogic(const ATCamera::CameraController& cameraController, TransformGizmo& transformGizmo)
-{
-    transformGizmo.SetSelected(ATMath::Axis::None);
-    const Matrix ct = transformGizmo.GetCurrentTransform();
-    const Vector3 extents = transformGizmo.GetExtents();
-    const Ray mRay = cameraController.GetWorldMouseRay();
-    const RayCollision rayCol = GetRayCollisionOBB(mRay, ct, extents);
-    if (not rayCol.hit)
-        return;
-
-    const auto [right, up, forward] = transformGizmo.GetWorldAxes();
-    const Vector3 tp = transformGizmo.GetPosition();
-    const Ray xRay{tp, right};
-    const Ray yRay{tp, up};
-    const Ray zRay{tp, forward};
-
-    const Vector2 paramsXAxis = ATMath::getClosestPointsParams(mRay, xRay);
-    const Vector3 xAxisClosestPointsVector = ATMath::evaluateRay(mRay, paramsXAxis.x) - ATMath::evaluateRay(xRay, paramsXAxis.y);
-    const float xLength = Vector3LengthSqr(xAxisClosestPointsVector);
-
-    const Vector2 paramsYAxis = ATMath::getClosestPointsParams(mRay, yRay);
-    const Vector3 yAxisClosestPointsVector = ATMath::evaluateRay(mRay, paramsYAxis.x) - ATMath::evaluateRay(yRay, paramsYAxis.y);
-    const float yLength = Vector3LengthSqr(yAxisClosestPointsVector);
-
-    const Vector2 paramsZAxis = ATMath::getClosestPointsParams(mRay, zRay);
-    const Vector3 zAxisClosestPointsVector = ATMath::evaluateRay(mRay, paramsZAxis.x) - ATMath::evaluateRay(zRay, paramsZAxis.y);
-    const float zLength = Vector3LengthSqr(zAxisClosestPointsVector);
-
-    if (xLength < yLength)
-        transformGizmo.SetSelected(zLength < xLength ? ATMath::Axis::Z : ATMath::Axis::X);
-    else
-        transformGizmo.SetSelected(zLength < yLength ? ATMath::Axis::Z : ATMath::Axis::Y);
-}
-
 void UpdateGizmo(float& cAngle, TransformGizmo& tGiz)
 {
     constexpr Vector3 axis(0,1,0);
@@ -234,6 +229,16 @@ void UpdateGizmo(float& cAngle, TransformGizmo& tGiz)
     tGiz.SetPosition(cPos);
 }
 
+void randomizeTransformGizmo(TransformGizmo& tGiz)
+{
+    const Vector3 rp = ATRandom::randomUnitCubeVector();
+    const Vector3 rAxis = ATRandom::randomOnUnitSphereVector();
+    const Quaternion cRotar = QuaternionFromAxisAngle(rAxis,
+        ATRandom::randomDoubleInRange(0, 2*std::numbers::pi));
+    tGiz.SetPosition(rp);
+    tGiz.SetRotation(cRotar);
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -248,9 +253,6 @@ int main(int argc, char *argv[])
     SetTargetFPS(60);
 
     constexpr Color backgroundColor(84, 82, 77, 255);
-    float cAngle = 0.0f;
-    Vector3 curSpherePos(0,0,0);
-    Vector3 curSphereEndPos(1,1,1);
     while (!WindowShouldClose())
     {
         cameraController.Update();
@@ -261,13 +263,10 @@ int main(int argc, char *argv[])
                 ATCamera::CameraRenderGuard cameraRenderGuard(cameraController);
                 {
                     TransformGizmo& tGiz = *transformGizmo;
-                    //UpdateGizmo(cAngle, tGiz);
 
+                    tGiz.Update(cameraController);
                     tGiz.DrawBB();
                     tGiz.DrawTransformGizmo(gizmoMat);
-
-                    // lets shoot a ray
-                    RayCollisionLogic(cameraController, tGiz);
 
                     DrawGrid(30, 1.0f);
                 }

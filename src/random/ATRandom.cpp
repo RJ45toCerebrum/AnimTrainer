@@ -23,4 +23,12 @@ Vector3 randomUnitCubeVector()
     return Vector3(dis(gen), dis(gen), dis(gen));
 }
 
+Vector3 randomOnUnitSphereVector()
+{
+    std::uniform_real_distribution<> dis(-1, 1);
+    const Vector3 rv(dis(gen), dis(gen), dis(gen));
+    return Vector3Normalize(rv);
+}
+
+
 END_NAMESPACE

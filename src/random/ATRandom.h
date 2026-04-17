@@ -12,4 +12,7 @@ Vector3 randomPointInBox(const Vector3& boxCenter, const Vector3& hsize);
 double randomDoubleInRange(double min, double max);
 Vector3 randomUnitCubeVector();
 
+// WARNING: this is not completely uniform; Should do that at some point...
+Vector3 randomOnUnitSphereVector();
+
 END_NAMESPACE

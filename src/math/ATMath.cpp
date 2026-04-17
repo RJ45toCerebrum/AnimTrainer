@@ -48,3 +48,26 @@ Vector2 ATMath::getClosestPointsParams(const Ray& ray0, const Ray& ray1)
         (d * b - e * a) / denom
     };
 }
+
+RayCollision ATMath::getRayCollisionOBB(const Ray& worldRay, const Matrix& transform, const Vector3& size)
+{
+    const BoundingBox localBox =
+    {
+        Vector3{-size.x, -size.y, -size.z},
+        Vector3{size.x,  size.y,  size.z}
+    };
+
+    Matrix invTransform = MatrixInvert(transform);
+
+    Ray localRay;
+    localRay.position = Vector3Transform(worldRay.position, invTransform);
+    invTransform.m12 = invTransform.m13 = invTransform.m14 = 0.0f;
+    localRay.direction = Vector3Transform(worldRay.direction, invTransform);
+
+    RayCollision collision = GetRayCollisionBox(localRay, localBox);
+    if (collision.hit) {
+        // Note: 'distance' remains correct if your scale is uniform (1,1,1)
+        collision.point = Vector3Transform(collision.point, transform);
+    }
+    return collision;
+}

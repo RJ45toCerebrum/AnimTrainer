@@ -5,7 +5,6 @@
 #include <array>
 
 #include "raylib.h"
-#include "raymath.h"
 
 namespace ATMath
 {
@@ -43,5 +42,6 @@ namespace ATMath
     // will only yield proper results of ray dir is is normalized...
     Vector3 closestPointAlongRay(const Ray& ray, const Vector3& point);
     Vector2 getClosestPointsParams(const Ray& ray0, const Ray& ray1);
+    RayCollision getRayCollisionOBB(const Ray& worldRay, const Matrix& transform, const Vector3& size);
 } // end ATMath
 
