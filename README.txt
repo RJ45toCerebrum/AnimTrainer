@@ -93,4 +93,6 @@ consider pulling in RTM just for those systems.
 The two can coexist fine; RTM types live in their own namespace and you'd convert at the boundary.
 
 
+https://github.com/g-truc/glm/blob/master/manual.md
+
 

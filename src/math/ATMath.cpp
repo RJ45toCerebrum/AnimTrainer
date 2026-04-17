@@ -1,6 +1,109 @@
 // Created by Tyler on 4/15/2026.
 #include "ATMath.h"
 #include "raymath.h"
+#include "glm/gtx/quaternion.hpp"
+
+
+glm::mat4x4 ATMath::Transform::toMatrix() const
+{
+    glm::mat4 mat = glm::mat4_cast(_rotation);
+    mat[3] = _position;
+    return mat;
+}
+Matrix ATMath::Transform::toRayMatrix() const
+{
+    const glm::mat4x4 matrixForm = toMatrix();
+    Matrix rayMatrix;
+    std::memcpy(&rayMatrix, &matrixForm, sizeof(Matrix));
+    return rayMatrix;
+}
+
+ATMath::Transform ATMath::Transform::inverse() const
+{
+    Transform inv;
+    inv._rotation = glm::conjugate(_rotation);
+    const glm::vec3 pos(_position.x, _position.y, _position.z);
+    inv._position = glm::vec4(inv._rotation * -pos, 1.0f);
+    return inv;
+}
+
+void ATMath::Transform::invert()
+{
+    const glm::quat invRotation = glm::conjugate(_rotation);
+    const glm::vec3 invPos = invRotation * -glm::vec3(_position);
+    _position = glm::vec4(invPos, 1.0f);
+    _rotation = invRotation;
+}
+
+void ATMath::Transform::translate(const glm::vec3& v)
+{
+    _position += glm::vec4(v, 0.0f);
+}
+
+glm::vec3 ATMath::Transform::getPosition() const
+{
+    return {_position.x, _position.y, _position.z};
+}
+
+void ATMath::Transform::setPosition(const glm::vec3& point)
+{
+    _position = glm::vec4(point, 1.0f);
+}
+
+glm::quat ATMath::Transform::getRotation() const
+{
+    return _rotation;
+}
+
+void ATMath::Transform::setRotation(const glm::quat& rotation)
+{
+    assert(glm::epsilonEqual(glm::length2(rotation), 1.0f, glm::epsilon<float>()));
+    _rotation = rotation;
+}
+
+bool ATMath::operator==(const Transform& left, const Transform& right)
+{
+    const bool positionsEqual =
+        glm::all(glm::epsilonEqual(left._position, right._position, glm::epsilon<float>()));
+    const bool rotationsEqual =
+        glm::all(glm::epsilonEqual(left._rotation, right._rotation, glm::epsilon<float>()));
+    return positionsEqual and rotationsEqual;
+}
+
+bool ATMath::operator!=(const Transform &left, const Transform &right)
+{
+    return !(left == right);
+}
+
+ATMath::Transform ATMath::operator*(const Transform& left, const Transform& right)
+{
+    Transform result;
+    result._rotation = left._rotation * right._rotation;
+    const glm::vec3 rotatedRightPos = left._rotation * glm::vec3(right._position);
+    result._position = glm::vec4(rotatedRightPos + glm::vec3(left._position), 1.0f);
+    return result;
+}
+
+ATMath::Transform ATMath::operator^(const Transform& left, const Transform& right)
+{
+    return left.inverse() * right;
+}
+
+Matrix ATMath::glmToRayMatrix(const glm::mat4& matrix)
+{
+    Matrix rayMatrix = {};
+    std::memcpy(&rayMatrix, &matrix, sizeof(Matrix));
+    return rayMatrix;
+}
+
+Matrix ATMath::glmToRayMatrix(const glm::quat& rotation, const glm::vec4& position)
+{
+    glm::mat4 transform = glm::mat4_cast(rotation);
+    transform[3] = position;
+    Matrix mat = {};
+    std::memcpy(&mat, &transform, sizeof(Matrix));
+    return mat;
+}
 
 std::array<Vector3,8> ATMath::getCubeCorners(const Vector3& hSize)
 {
