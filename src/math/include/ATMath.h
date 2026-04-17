@@ -6,6 +6,12 @@
 
 #include "raylib.h"
 
+#include <glm/vec2.hpp>
+#include <glm/vec3.hpp>
+#include <glm/matrix.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
+
 namespace ATMath
 {
     constexpr static Vector3 VZERO{0,0,0};

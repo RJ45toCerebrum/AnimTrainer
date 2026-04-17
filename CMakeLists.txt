@@ -20,6 +20,15 @@ message(STATUS "Compiler Version: ${CMAKE_CXX_COMPILER_VERSION}")
 message(STATUS "Compiler Path: ${CMAKE_CXX_COMPILER}")
 message(STATUS "Source Dir: ${CMAKE_CURRENT_SOURCE_DIR}")
 
+message(STATUS "Fetching GLM")
+include(FetchContent)
+FetchContent_Declare(
+        glm
+        GIT_REPOSITORY https://github.com/g-truc/glm.git
+        GIT_TAG        1.0.1  # You can update this to the latest tag
+)
+FetchContent_MakeAvailable(glm)
+
 add_executable(AnimTrainer)
 
 add_subdirectory(raylib)
@@ -32,6 +41,7 @@ target_include_directories(AnimTrainer PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/
 
 # each module will have its own subdir under src...
 # I call this module here, buts its not a C++ module. This is just a standard link target..
+target_link_libraries(AnimTrainer PRIVATE glm::glm)
 add_subdirectory(src/camera)
 target_link_libraries(AnimTrainer PRIVATE Camera)
 add_subdirectory(src/math)

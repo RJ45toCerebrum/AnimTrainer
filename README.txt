@@ -85,4 +85,12 @@ However, if I do this, I have a problem. What happens when System A needs the co
 
 
 
+Practical suggestion for your project:
+Use GLM across the whole codebase since it integrates naturally with RayLib and covers your rendering needs
+(matrix transforms, view/projection, ray casting). When you get to ControlRigSystem and the animation systems —
+where you're chaining joint transforms every frame and doing quaternion interpolation up and down a skeleton —
+consider pulling in RTM just for those systems.
+The two can coexist fine; RTM types live in their own namespace and you'd convert at the boundary.
+
+
 
