@@ -50,7 +50,6 @@ CamGuard::CameraRenderGuard(CameraController& cameraCon) :
     _cameraController(cameraCon)
 {
     const Camera3D& cam = cameraCon.GetCamera();
-    // unfortunately, BeginMode3D does copy =(. Will change later...
     BeginMode3D(cam);
 }
 CamGuard::~CameraRenderGuard()

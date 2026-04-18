@@ -37,6 +37,9 @@ namespace ATCamera
         void Update();
     };
 
+    /// DrawGuard always comes before CameraRenderGuard.
+    /// DrawGuard sets up canvas for drawing into.
+    /// CameraRenderGuard sets up camera for drawing. You can change cameras.
     class CameraRenderGuard
     {
         CameraController& _cameraController;

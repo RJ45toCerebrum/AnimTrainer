@@ -23,7 +23,6 @@ using glm::vec2;
 using glm::vec3;
 using glm::quat;
 using glm::mat4x4;
-
 using ATMath::toRLVec;
 
 
@@ -250,45 +249,53 @@ void randomizeTransformGizmo(TransformGizmo& tGiz)
     tGiz.SetRotation(rotation);
 }
 
+// DrawGuard always comes before CameraRenderGuard.
+// DrawGuard sets up canvas for drawing into.
+// CameraRenderGuard sets up camera for drawing. You can change cameras.
+struct DrawGuard
+{
+    DrawGuard()
+    {
+        BeginDrawing();
+    }
+    ~DrawGuard()
+    {
+        EndDrawing();
+    }
+};
 
 int main(int argc, char *argv[])
 {
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(1920, 1080, TITLE.data());
     DisableCursor();
+    SetTargetFPS(60);
 
     ATCamera::CameraController cameraController;
     Material gizmoMat = LoadMaterialDefault();
     std::unique_ptr<TransformGizmo> transformGizmo = std::make_unique<TransformGizmo>();
     randomizeTransformGizmo(*transformGizmo);
 
-    SetTargetFPS(60);
-
     while (!WindowShouldClose())
     {
         cameraController.Update();
-        BeginDrawing();
+        DrawGuard drawGuard;
+        constexpr Color backgroundColor(84, 82, 77, 255);
+        ClearBackground(backgroundColor);
         {
-            constexpr Color backgroundColor(84, 82, 77, 255);
-            ClearBackground(backgroundColor);
-            {
-                ATCamera::CameraRenderGuard cameraRenderGuard(cameraController);
-                {
-                    TransformGizmo& tGiz = *transformGizmo;
-                    tGiz.Update(cameraController);
-                    tGiz.DrawBB();
-                    tGiz.DrawTransformGizmo(gizmoMat);
+            ATCamera::CameraRenderGuard cameraRenderGuard(cameraController);
+            TransformGizmo& tGiz = *transformGizmo;
+            tGiz.Update(cameraController);
+            tGiz.DrawBB();
+            tGiz.DrawTransformGizmo(gizmoMat);
 
-                    DrawSphere({0,0,0}, .05, BLACK);
-                    DrawSphere({1,1,1}, .05, WHITE);
-                    DrawSphere({1,0,0}, .05, RED);
-                    DrawSphere({0,1,0}, .05, GREEN);
-                    DrawSphere({0,0,1}, .05, BLUE);
-                    DrawGrid(30, 1.0f);
-                }
-            }
+            DrawSphere({0,0,0}, .05, BLACK);
+            DrawSphere({1,1,1}, .05, WHITE);
+            DrawSphere({1,0,0}, .05, RED);
+            DrawSphere({0,1,0}, .05, GREEN);
+            DrawSphere({0,0,1}, .05, BLUE);
+            DrawGrid(30, 1.0f);
         }
-        EndDrawing();
     }
 
     UnloadMaterial(gizmoMat);
