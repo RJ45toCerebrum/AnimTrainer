@@ -122,9 +122,20 @@ vec3 ATTransform::transformPosition(const vec3& position) const
     return dq * position;
 }
 
+vec3 ATTransform::inverseTransformPosition(const vec3& position) const
+{
+    const vec3 relativePos = position - vec3(_position);
+    return glm::conjugate(_rotation) * relativePos;
+}
+
 vec3 ATTransform::transformDirection(const vec3& direction) const
 {
     return _rotation * direction;
+}
+
+vec3 ATTransform::inverseTransformDirection(const vec3& direction) const
+{
+    return glm::inverse(_rotation) * direction;
 }
 
 
@@ -167,7 +178,7 @@ ATTransform ATMath::operator*(const quat& leftQuat, const Transform& right)
 ATTransform ATMath::operator*(const Transform& left, const quat& rightQuat)
 {
     Transform result;
-    result._rotation = left._rotation * rightQuat;
+    result._rotation = glm::normalize(left._rotation * rightQuat);
     result._position = left._position; // local rotation doesn't move the origin
     return result;
 }
@@ -221,6 +232,26 @@ std::array<vec3,8> ATMath::getCubeCorners(const vec3& hSize)
         vec3{-hSize.x, -hSize.y , -hSize.z}, vec3{hSize.x, -hSize.y, -hSize.z}, vec3{hSize.x, hSize.y, -hSize.z}, vec3{-hSize.x, hSize.y, -hSize.z},
         vec3{-hSize.x, -hSize.y,  hSize.z}, vec3{hSize.x, -hSize.y,  hSize.z}, vec3{hSize.x, hSize.y,  hSize.z}, vec3{-hSize.x, hSize.y,  hSize.z}
     };
+}
+
+std::optional<vec2> ATMath::raySphereIntersection(const ATMath::Ray& ray, const vec3& sphereCenter, const float radius)
+{
+    const vec3 L = ray.origin - sphereCenter;
+
+    // Coefficients for: at^2 + bt + c = 0
+    const float a = glm::dot(ray.direction, ray.direction);
+    const float b = 2.0f * glm::dot(ray.direction, L);
+    const float c = glm::dot(L, L) - (radius * radius);
+    const float discriminant = b * b - 4.0f * a * c;
+    if (discriminant < 0)
+        return std::nullopt;
+
+    // To find the closest hit point, solve for the smaller t
+    const float sqrtDisc = std::sqrt(discriminant);
+    const float t0 = (-b - sqrtDisc) / (2.0f * a);
+    const float t1 = (-b + sqrtDisc) / (2.0f * a);
+    const vec2 rv{std::min(t0, t1), std::max(t0,t1)};
+    return std::optional<vec2>{rv};
 }
 
 vec3 ATMath::evaluateRay(const Ray& ray, const float param)

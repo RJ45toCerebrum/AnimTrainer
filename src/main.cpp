@@ -10,6 +10,9 @@
 #include "rlgl.h"
 #include "glm/gtc/random.hpp"
 #include "glm/gtx/quaternion.hpp"
+#include <glm/gtx/vector_angle.hpp>
+
+#include "glm/gtx/string_cast.hpp"
 
 
 namespace
@@ -28,14 +31,22 @@ using glm::mat4x4;
 using ATMath::toRLVec;
 
 
+void ATDrawLine(const vec3& start, const vec3& end, const Color& color)
+{
+    const Vector3 sv{start.x, start.y, start.z};
+    const Vector3 ev{end.x, end.y, end.z};
+    DrawLine3D(sv, ev, color);
+}
+
 class TransformGizmo
 {
-    ATTransform transform;
+    ATTransform _transform;
     // bounding box / extents
-    vec3 hsize = glm::one<vec3>();
+    vec3 _hsize = glm::one<vec3>();
     // will delete at some point
-    ATMath::Axis selectedAxis = ATMath::Axis::None;
-    vec3 lastAxisPosition = ATMath::kVec3Zero;
+    ATMath::Axis _selectedAxis = ATMath::Axis::None;
+    vec3 _lastAxisPosition = ATMath::kVec3Zero;
+    vec3 _lastSphericalPosition = ATMath::kVec3Zero;
 
     // very inefficient as we create new mesh for every gizmo.
     // but must fix later. Better than mem-leak I had before...
@@ -51,44 +62,45 @@ public:
 
     [[nodiscard]] ATTransform GetCurrentTransform() const
     {
-        return transform;
+        return _transform;
     }
     [[nodiscard]] vec3 GetPosition() const
     {
-        return transform.getPosition();
+        return _transform.getPosition();
     }
     void SetPosition(const vec3& p)
     {
-        transform.setPosition(p);
+        _transform.setPosition(p);
     }
     [[nodiscard]] vec3 GetExtents() const
     {
-        return this->hsize;
+        return this->_hsize;
     }
     void SetExtents(const vec3& extents)
     {
-        hsize = extents;
+        _hsize = extents;
     }
     [[nodiscard]] quat GetRotation() const
     {
-        return transform.getRotation();
+        return _transform.getRotation();
     }
     void SetRotation(const quat& q)
     {
-        transform.setRotation(q);
+        _transform.setRotation(q);
     }
     void SetSelected(const ATMath::Axis selAxis)
     {
-        this->selectedAxis = selAxis;
+        this->_selectedAxis = selAxis;
     }
     [[nodiscard]] VecPack GetWorldAxes() const
     {
-        return transform.extractAxes();
+        return _transform.extractAxes();
     }
 
     void Update(const ATCamera::CameraController& cameraController)
     {
         //TranslationUpdate(cameraController);
+        RotationUpdate(cameraController);
     }
     void DrawTransformGizmo(const Material& transformMat) const
     {
@@ -97,34 +109,34 @@ public:
 
         // draw up arrow (yellow) //rgb(83, 189, 116)
         transformMat.maps[MATERIAL_MAP_DIFFUSE].color =
-            selectedAxis == ATMath::Axis::Y ? selectedColor : upAxisColor;
-        DrawArrowGizmo(transformMat, transform, _cylinderMesh, _coneMesh);
+            _selectedAxis == ATMath::Axis::Y ? selectedColor : upAxisColor;
+        DrawArrowGizmo(transformMat, _transform, _cylinderMesh, _coneMesh);
 
         // draw x-axis arrow (red)
         transformMat.maps[MATERIAL_MAP_DIFFUSE].color =
-            selectedAxis == ATMath::Axis::X ? selectedColor : RED;
+            _selectedAxis == ATMath::Axis::X ? selectedColor : RED;
         quat rotation = ATMath::rotation(-90, ATMath::kVec3Forward);
         ATTransform rotationTransform;
         rotationTransform.setRotation(rotation);
-        ATTransform redArrowTransform = transform * rotationTransform;
+        ATTransform redArrowTransform = _transform * rotationTransform;
         DrawArrowGizmo(transformMat, redArrowTransform, _cylinderMesh, _coneMesh);
 
         // Draw z-axis (blue)
         transformMat.maps[MATERIAL_MAP_DIFFUSE].color =
-            selectedAxis == ATMath::Axis::Z ? selectedColor : BLUE;
+            _selectedAxis == ATMath::Axis::Z ? selectedColor : BLUE;
         rotation = ATMath::rotation(90, ATMath::kVec3Right);
         rotationTransform.setRotation(rotation);
-        ATTransform blueArrowTransform = transform * rotationTransform;
+        ATTransform blueArrowTransform = _transform * rotationTransform;
         DrawArrowGizmo(transformMat, blueArrowTransform, _cylinderMesh, _coneMesh);
     }
     void DrawBB() const
     {
-        std::array<vec3,8> cubeCorners = ATMath::getCubeCorners(hsize);
+        std::array<vec3,8> cubeCorners = ATMath::getCubeCorners(_hsize);
         // mostly needed to avoid needing to convert too many times below
         std::array<Vector3,8> cubeCornersTransformed = {};
         for (std::size_t i = 0; i < cubeCorners.size(); i++)
         {
-            const vec3 transformedCC = transform.transformPosition(cubeCorners[i]);
+            const vec3 transformedCC = _transform.transformPosition(cubeCorners[i]);
             cubeCornersTransformed[i] = toRLVec(transformedCC);
         }
 
@@ -144,27 +156,28 @@ public:
         for (int i = 0; i < 4; i++)
             DrawLine3D(cubeCornersTransformed[i], cubeCornersTransformed[i + 4], ORANGE);
     }
-    static void DrawRotationGizmo()
+    void DrawRotationGizmo()
     {
         constexpr Color kXAxisColor{255,0,0, 255};
         constexpr Color kYAxisColor{0,255,0, 255};
         constexpr Color kZAxisColor{0,0,255, 255};
         constexpr vec3 zeroVector{0,0,0};
-        constexpr vec3 right{1,0,0};
-        constexpr vec3 up{0,1,0};
-        constexpr vec3 forward{0,0, 1};
+        const auto [right, up, forward] = _transform.extractAxes();
+
         //static vec3 randomAxis = ATRandom::randomOnUnitSphereVector();
         //static Vector3 rx = {randomAxis.x, randomAxis.y, randomAxis.z};
         DrawCircleAroundAxis(1, right, kXAxisColor);
         DrawCircleAroundAxis(1, up, kYAxisColor);
         DrawCircleAroundAxis(1, forward, kZAxisColor);
+        constexpr Color gizmoSphereColor{0,0,0,33};
+        DrawSphere({0,0,0}, 1, gizmoSphereColor);
     }
 
 private:
     void TranslationUpdate(const ATCamera::CameraController& cameraController)
     {
         const ATRay mRay = cameraController.GetWorldMouseRay();
-        const RayCollision rayCol = ATMath::getRayCollisionOBB(mRay, transform, hsize);
+        const RayCollision rayCol = ATMath::getRayCollisionOBB(mRay, _transform, _hsize);
         if (not rayCol.hit)
         {
             SetSelected(ATMath::Axis::None);
@@ -193,16 +206,16 @@ private:
         vec3 closestAxisPoint = glm::zero<vec3>();
         vec3 movementDirection = glm::zero<vec3>();
         const bool leftMouseDown = IsMouseButtonDown(MouseButton::MOUSE_BUTTON_LEFT);
-        if (leftMouseDown and selectedAxis != ATMath::Axis::None)
+        if (leftMouseDown and _selectedAxis != ATMath::Axis::None)
         {
             // in this if block, if we hold the mouse down, we never allow switch
             // to different axis because it results in sudden jumps in the gizmo.
-            if (selectedAxis == ATMath::Axis::X)
+            if (_selectedAxis == ATMath::Axis::X)
             {
                 closestAxisPoint = cpOnXRay;
                 movementDirection = right;
             }
-            else if (selectedAxis == ATMath::Axis::Y)
+            else if (_selectedAxis == ATMath::Axis::Y)
             {
                 closestAxisPoint = cpOnYRay;
                 movementDirection = up;
@@ -254,23 +267,52 @@ private:
         }
         else
         {
-            const vec3 v = closestAxisPoint - lastAxisPosition;
+            const vec3 v = closestAxisPoint - _lastAxisPosition;
             // movementDirection = the direction of the selected axis...
             // prevents jumping...
             const vec3 newGizmoPos = curGizmoPos + glm::dot(v, movementDirection) * movementDirection;
             SetPosition(newGizmoPos);
         }
-        lastAxisPosition = closestAxisPoint;
+        _lastAxisPosition = closestAxisPoint;
     }
 
     void RotationUpdate(const ATCamera::CameraController& cameraController)
     {
         const ATRay mRay = cameraController.GetWorldMouseRay();
-        const RayCollision rayCol = ATMath::getRayCollisionOBB(mRay, transform, hsize);
-        if (not rayCol.hit)
+        const auto res = ATMath::raySphereIntersection(mRay, ATMath::kVec3Zero, 1);
+        if (!res)
             return;
 
-        // for now. I just assume gizmo at center... MUST FIX
+        const vec2 params = res.value();
+        const vec3 sphereIntersectPoint = ATMath::evaluateRay(mRay, params.x);
+        const Vector3 ip{sphereIntersectPoint.x, sphereIntersectPoint.y, sphereIntersectPoint.z};
+        DrawSphere(ip, 0.01f, YELLOW);
+
+        if (IsMouseButtonPressed(MouseButton::MOUSE_BUTTON_LEFT))
+        {
+            _lastSphericalPosition = sphereIntersectPoint;
+            return;
+        }
+        if (IsMouseButtonDown(MouseButton::MOUSE_BUTTON_LEFT))
+        {
+            const vec3 nlsp = glm::normalize(_lastSphericalPosition);
+            const vec3 nsip = glm::normalize(sphereIntersectPoint);
+            const vec3 cross = glm::cross(nlsp, nsip);
+            const float crossLen = glm::length(cross);
+            // Skip this frame if points are too close (mouse hasn't moved enough)
+            if (crossLen < 1e-6f)
+            {
+                _lastSphericalPosition = sphereIntersectPoint;
+                return;
+            }
+            const float angleBetween = glm::angle(nlsp, nsip);
+            if (angleBetween < 0.0001f)
+                return;
+
+            const vec3 localAxis = _transform.inverseTransformDirection(glm::normalize(cross));
+            _transform =  _transform * glm::angleAxis(angleBetween, localAxis);
+            _lastSphericalPosition = sphereIntersectPoint;
+        }
     }
 
     static void DrawArrowGizmo(const Material& arrowMaterial,
@@ -291,8 +333,8 @@ private:
     static void DrawCircleAroundAxis(const float radius, const vec3& rotationAxis, const Color color)
     {
         const vec3 perpendicular = ATMath::perpendicular(rotationAxis);
-        const vec3 cross = glm::cross(rotationAxis, perpendicular);
-        const vec3 right = glm::cross(rotationAxis, cross);
+        const vec3 cross = glm::normalize(glm::cross(rotationAxis, perpendicular));
+        const vec3 right = glm::normalize(glm::cross(rotationAxis, cross));
         rlBegin(RL_LINES);
         for (int i = 0; i < 360; i += 10)
         {
@@ -360,7 +402,6 @@ int main(int argc, char *argv[])
     ATCamera::CameraController cameraController;
     Material gizmoMat = LoadMaterialDefault();
     std::unique_ptr<TransformGizmo> transformGizmo = std::make_unique<TransformGizmo>();
-    //randomizeTransformGizmo(*transformGizmo);
 
     while (!WindowShouldClose())
     {
@@ -372,9 +413,9 @@ int main(int argc, char *argv[])
             ATCamera::CameraRenderGuard cameraRenderGuard(cameraController);
 
             TransformGizmo& tGiz = *transformGizmo;
-            //tGiz.Update(cameraController);
+            tGiz.Update(cameraController);
             //tGiz.DrawBB();
-            //tGiz.DrawTransformGizmo(gizmoMat);
+            tGiz.DrawTransformGizmo(gizmoMat);
             tGiz.DrawRotationGizmo();
 
             DrawSphere({0,0,0}, .05, BLACK);

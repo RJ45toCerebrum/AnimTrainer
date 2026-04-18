@@ -3,6 +3,8 @@
 
 #ifndef GLM_ENABLE_EXPERIMENTAL
 #define GLM_ENABLE_EXPERIMENTAL
+#include <expected>
+#include <optional>
 #endif
 
 #include <array>
@@ -72,7 +74,9 @@ namespace ATMath
         [[nodiscard]] Vec3Pack extractAxes() const;
 
         [[nodiscard]] glm::vec3 transformPosition(const glm::vec3& position) const;
+        [[nodiscard]] glm::vec3 inverseTransformPosition(const glm::vec3& position) const;
         [[nodiscard]] glm::vec3 transformDirection(const glm::vec3& direction) const;
+        [[nodiscard]] glm::vec3 inverseTransformDirection(const glm::vec3& direction) const;
 
         friend bool operator==(const Transform& left, const Transform& right);
         friend bool operator!=(const Transform& left, const Transform& right);
@@ -103,6 +107,9 @@ namespace ATMath
     std::array<glm::vec3,8> getCubeCorners(const glm::vec3& hSize);
     ATMath::Ray transformRay(const Transform& transform, const Ray& ray);
     glm::vec3 evaluateRay(const Ray& ray, float param);
+    // the returned glm::vec2 are the params. You need to evaluate the ray to get the actual points.
+    // This allows you to get the
+    std::optional<glm::vec2> raySphereIntersection(const ATMath::Ray& ray, const glm::vec3& sphereCenter, float radius);
     /// will only yield proper results of ray dir is normalized...
     glm::vec3 closestPointAlongRay(const Ray& ray, const glm::vec3& point);
     /// returns the 2 parameters of the rays such that
