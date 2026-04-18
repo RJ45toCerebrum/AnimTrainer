@@ -17,18 +17,29 @@ double randomDoubleInRange(double min, double max)
     return dis(gen);
 }
 
-Vector3 randomUnitCubeVector()
+float randomFloatInRange(float min, float max)
 {
-    std::uniform_real_distribution<> dis(-1, 1);
-    return Vector3(dis(gen), dis(gen), dis(gen));
+    if (min > max)
+        std::swap(min, max);
+    std::uniform_real_distribution<> dis(min, max);
+    return dis(gen);
 }
 
-Vector3 randomOnUnitSphereVector()
+vec3 randomUnitCubeVector()
 {
     std::uniform_real_distribution<> dis(-1, 1);
-    const Vector3 rv(dis(gen), dis(gen), dis(gen));
-    return Vector3Normalize(rv);
+    return {dis(gen), dis(gen), dis(gen)};
 }
 
+vec3 randomOnUnitSphereVector()
+{
+    std::uniform_real_distribution<> dis(-1, 1);
+    const vec3 rv {
+        static_cast<float>(dis(gen)),
+        static_cast<float>(dis(gen)),
+        static_cast<float>(dis(gen))
+    };
+    return glm::normalize(rv);
+}
 
 END_NAMESPACE

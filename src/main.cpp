@@ -243,12 +243,10 @@ void UpdateGizmo(float& cAngle, TransformGizmo& tGiz)
 
 void randomizeTransformGizmo(TransformGizmo& tGiz)
 {
-    const Vector3 rp = ATRandom::randomUnitCubeVector();
-    const Vector3 randomAxis = ATRandom::randomOnUnitSphereVector();
-    const vec3 ra{randomAxis.x, randomAxis.y, randomAxis.z};
-    tGiz.SetPosition(vec3{rp.x, rp.y, rp.z});
-    const double rf = ATRandom::randomDoubleInRange(0, 360);
-    const quat rotation = ATMath::rotation(rf, ra);
+    const vec3 rp = ATRandom::randomUnitCubeVector();
+    const vec3 randomAxis = ATRandom::randomOnUnitSphereVector();
+    tGiz.SetPosition(rp);
+    const quat rotation = ATMath::rotation(ATRandom::randomFloatInRange(0, 360), randomAxis);
     tGiz.SetRotation(rotation);
 }
 
