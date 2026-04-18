@@ -80,7 +80,7 @@ ATTransform ATTransform::inverse() const
 void ATTransform::invert()
 {
     const quat invRotation = glm::conjugate(_rotation);
-    const vec3 invPos = invRotation * -glm::vec3(_position);
+    const vec3 invPos = invRotation * -vec3(_position);
     _position = vec4(invPos, 1.0f);
     _rotation = invRotation;
 }
@@ -203,6 +203,15 @@ bool ATMath::isNormalized(const vec3& v)
     constexpr auto epi = 10 * glm::epsilon<float>();
     const float absVal = std::abs(1 - glm::length2(v));
     return absVal < epi;
+}
+
+vec3 ATMath::perpendicular(const vec3& v)
+{
+    if (std::abs(v.x) < std::abs(v.y) && std::abs(v.x) < std::abs(v.z))
+        return vec3{0, -v.z, v.y};
+    if (std::abs(v.y) < std::abs(v.z))
+        return vec3{-v.z, 0, v.x};
+    return vec3{-v.y, v.x, 0};
 }
 
 std::array<vec3,8> ATMath::getCubeCorners(const vec3& hSize)

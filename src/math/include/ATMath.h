@@ -24,11 +24,11 @@ namespace ATMath
 
     using Vec3Pack = std::tuple<glm::vec3,glm::vec3,glm::vec3>;
 
-    constexpr static glm::vec3 kVec3Zero = glm::zero<glm::vec3>();
-    constexpr static glm::vec3 kVec3One = glm::one<glm::vec3>();
-    constexpr static glm::vec3 kVec3Right{1,0,0};
-    constexpr static glm::vec3 kVec3Up{0,1,0};
-    constexpr static glm::vec3 kVec3Forward{0,0,1};
+    constexpr glm::vec3 kVec3Zero = glm::zero<glm::vec3>();
+    constexpr glm::vec3 kVec3One = glm::one<glm::vec3>();
+    constexpr glm::vec3 kVec3Right{1,0,0};
+    constexpr glm::vec3 kVec3Up{0,1,0};
+    constexpr glm::vec3 kVec3Forward{0,0,1};
 
     enum class Axis
     {
@@ -99,6 +99,7 @@ namespace ATMath
     glm::mat4x4 rotationMatrix(float angleDegrees, const glm::vec3& axis);
 
     bool isNormalized(const glm::vec3& v);
+    glm::vec3 perpendicular(const glm::vec3& v);
     std::array<glm::vec3,8> getCubeCorners(const glm::vec3& hSize);
     ATMath::Ray transformRay(const Transform& transform, const Ray& ray);
     glm::vec3 evaluateRay(const Ray& ray, float param);

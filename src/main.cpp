@@ -7,6 +7,8 @@
 #include "ATRandom.h"
 
 #include "raymath.h"
+#include "rlgl.h"
+#include "glm/gtc/random.hpp"
 #include "glm/gtx/quaternion.hpp"
 
 
@@ -85,6 +87,81 @@ public:
     }
 
     void Update(const ATCamera::CameraController& cameraController)
+    {
+        //TranslationUpdate(cameraController);
+    }
+    void DrawTransformGizmo(const Material& transformMat) const
+    {
+        constexpr Color upAxisColor{83, 189, 116, 255};
+        constexpr Color selectedColor = PURPLE;
+
+        // draw up arrow (yellow) //rgb(83, 189, 116)
+        transformMat.maps[MATERIAL_MAP_DIFFUSE].color =
+            selectedAxis == ATMath::Axis::Y ? selectedColor : upAxisColor;
+        DrawArrowGizmo(transformMat, transform, _cylinderMesh, _coneMesh);
+
+        // draw x-axis arrow (red)
+        transformMat.maps[MATERIAL_MAP_DIFFUSE].color =
+            selectedAxis == ATMath::Axis::X ? selectedColor : RED;
+        quat rotation = ATMath::rotation(-90, ATMath::kVec3Forward);
+        ATTransform rotationTransform;
+        rotationTransform.setRotation(rotation);
+        ATTransform redArrowTransform = transform * rotationTransform;
+        DrawArrowGizmo(transformMat, redArrowTransform, _cylinderMesh, _coneMesh);
+
+        // Draw z-axis (blue)
+        transformMat.maps[MATERIAL_MAP_DIFFUSE].color =
+            selectedAxis == ATMath::Axis::Z ? selectedColor : BLUE;
+        rotation = ATMath::rotation(90, ATMath::kVec3Right);
+        rotationTransform.setRotation(rotation);
+        ATTransform blueArrowTransform = transform * rotationTransform;
+        DrawArrowGizmo(transformMat, blueArrowTransform, _cylinderMesh, _coneMesh);
+    }
+    void DrawBB() const
+    {
+        std::array<vec3,8> cubeCorners = ATMath::getCubeCorners(hsize);
+        // mostly needed to avoid needing to convert too many times below
+        std::array<Vector3,8> cubeCornersTransformed = {};
+        for (std::size_t i = 0; i < cubeCorners.size(); i++)
+        {
+            const vec3 transformedCC = transform.transformPosition(cubeCorners[i]);
+            cubeCornersTransformed[i] = toRLVec(transformedCC);
+        }
+
+        // Draw the 12 edges using DrawLine3D
+        // Back face
+        DrawLine3D(cubeCornersTransformed[0], cubeCornersTransformed[1], ORANGE);
+        DrawLine3D(cubeCornersTransformed[1], cubeCornersTransformed[2], ORANGE);
+        DrawLine3D(cubeCornersTransformed[2], cubeCornersTransformed[3], ORANGE);
+        DrawLine3D(cubeCornersTransformed[3], cubeCornersTransformed[0], ORANGE);
+        // Front face
+        DrawLine3D(cubeCornersTransformed[4], cubeCornersTransformed[5], ORANGE);
+        DrawLine3D(cubeCornersTransformed[5], cubeCornersTransformed[6], ORANGE);
+        DrawLine3D(cubeCornersTransformed[6], cubeCornersTransformed[7], ORANGE);
+        DrawLine3D(cubeCornersTransformed[7], cubeCornersTransformed[4], ORANGE);
+
+        // Connecting lines
+        for (int i = 0; i < 4; i++)
+            DrawLine3D(cubeCornersTransformed[i], cubeCornersTransformed[i + 4], ORANGE);
+    }
+    static void DrawRotationGizmo()
+    {
+        constexpr Color kXAxisColor{255,0,0, 255};
+        constexpr Color kYAxisColor{0,255,0, 255};
+        constexpr Color kZAxisColor{0,0,255, 255};
+        constexpr vec3 zeroVector{0,0,0};
+        constexpr vec3 right{1,0,0};
+        constexpr vec3 up{0,1,0};
+        constexpr vec3 forward{0,0, 1};
+        //static vec3 randomAxis = ATRandom::randomOnUnitSphereVector();
+        //static Vector3 rx = {randomAxis.x, randomAxis.y, randomAxis.z};
+        DrawCircleAroundAxis(1, right, kXAxisColor);
+        DrawCircleAroundAxis(1, up, kYAxisColor);
+        DrawCircleAroundAxis(1, forward, kZAxisColor);
+    }
+
+private:
+    void TranslationUpdate(const ATCamera::CameraController& cameraController)
     {
         const ATRay mRay = cameraController.GetWorldMouseRay();
         const RayCollision rayCol = ATMath::getRayCollisionOBB(mRay, transform, hsize);
@@ -166,8 +243,8 @@ public:
                 movementDirection = up;
             }
         }
-        // comment out to remove debug sphere
-        DrawSphere(ATMath::toRLVec(closestAxisPoint), 0.03f, ORANGE);
+        // below for debugging. Uncomment if needed.
+        // DrawSphere(ATMath::toRLVec(closestAxisPoint), 0.03f, ORANGE);
 
         if (!leftMouseDown)
         {
@@ -185,59 +262,15 @@ public:
         }
         lastAxisPosition = closestAxisPoint;
     }
-    void DrawTransformGizmo(const Material& transformMat) const
+
+    void RotationUpdate(const ATCamera::CameraController& cameraController)
     {
-        constexpr Color upAxisColor{83, 189, 116, 255};
-        constexpr Color selectedColor = PURPLE;
+        const ATRay mRay = cameraController.GetWorldMouseRay();
+        const RayCollision rayCol = ATMath::getRayCollisionOBB(mRay, transform, hsize);
+        if (not rayCol.hit)
+            return;
 
-        // draw up arrow (yellow) //rgb(83, 189, 116)
-        transformMat.maps[MATERIAL_MAP_DIFFUSE].color =
-            selectedAxis == ATMath::Axis::Y ? selectedColor : upAxisColor;
-        DrawArrowGizmo(transformMat, transform, _cylinderMesh, _coneMesh);
-
-        // draw x-axis arrow (red)
-        transformMat.maps[MATERIAL_MAP_DIFFUSE].color =
-            selectedAxis == ATMath::Axis::X ? selectedColor : RED;
-        quat rotation = ATMath::rotation(-90, ATMath::kVec3Forward);
-        ATTransform rotationTransform;
-        rotationTransform.setRotation(rotation);
-        ATTransform redArrowTransform = transform * rotationTransform;
-        DrawArrowGizmo(transformMat, redArrowTransform, _cylinderMesh, _coneMesh);
-
-        // Draw z-axis (blue)
-        transformMat.maps[MATERIAL_MAP_DIFFUSE].color =
-            selectedAxis == ATMath::Axis::Z ? selectedColor : BLUE;
-        rotation = ATMath::rotation(90, ATMath::kVec3Right);
-        rotationTransform.setRotation(rotation);
-        ATTransform blueArrowTransform = transform * rotationTransform;
-        DrawArrowGizmo(transformMat, blueArrowTransform, _cylinderMesh, _coneMesh);
-    }
-    void DrawBB() const
-    {
-        std::array<vec3,8> cubeCorners = ATMath::getCubeCorners(hsize);
-        // mostly needed to avoid needing to convert too many times below
-        std::array<Vector3,8> cubeCornersTransformed = {};
-        for (std::size_t i = 0; i < cubeCorners.size(); i++)
-        {
-            const vec3 transformedCC = transform.transformPosition(cubeCorners[i]);
-            cubeCornersTransformed[i] = toRLVec(transformedCC);
-        }
-
-        // Draw the 12 edges using DrawLine3D
-        // Back face
-        DrawLine3D(cubeCornersTransformed[0], cubeCornersTransformed[1], ORANGE);
-        DrawLine3D(cubeCornersTransformed[1], cubeCornersTransformed[2], ORANGE);
-        DrawLine3D(cubeCornersTransformed[2], cubeCornersTransformed[3], ORANGE);
-        DrawLine3D(cubeCornersTransformed[3], cubeCornersTransformed[0], ORANGE);
-        // Front face
-        DrawLine3D(cubeCornersTransformed[4], cubeCornersTransformed[5], ORANGE);
-        DrawLine3D(cubeCornersTransformed[5], cubeCornersTransformed[6], ORANGE);
-        DrawLine3D(cubeCornersTransformed[6], cubeCornersTransformed[7], ORANGE);
-        DrawLine3D(cubeCornersTransformed[7], cubeCornersTransformed[4], ORANGE);
-
-        // Connecting lines
-        for (int i = 0; i < 4; i++)
-            DrawLine3D(cubeCornersTransformed[i], cubeCornersTransformed[i + 4], ORANGE);
+        // for now. I just assume gizmo at center... MUST FIX
     }
 
     static void DrawArrowGizmo(const Material& arrowMaterial,
@@ -253,6 +286,26 @@ public:
         const Matrix coneLocal = MatrixScale(0.02f, 0.02f, 0.02f) * MatrixTranslate(0, 1, 0);
         const Matrix coneFinal = MatrixMultiply(coneLocal, M);
         DrawMesh(coneMesh, arrowMaterial, coneFinal);
+    }
+
+    static void DrawCircleAroundAxis(const float radius, const vec3& rotationAxis, const Color color)
+    {
+        const vec3 perpendicular = ATMath::perpendicular(rotationAxis);
+        const vec3 cross = glm::cross(rotationAxis, perpendicular);
+        const vec3 right = glm::cross(rotationAxis, cross);
+        rlBegin(RL_LINES);
+        for (int i = 0; i < 360; i += 10)
+        {
+            rlColor4ub(color.r, color.g, color.b, color.a);
+
+            const float radStart = glm::radians(static_cast<float>(i));
+            const float radEnd = glm::radians(static_cast<float>(i + 10));
+            const vec3 av = radius * ( cross * sinf(radStart) + right * cosf(radStart) );
+            const vec3 bv = radius * ( cross * sinf(radEnd) + right * cosf(radEnd) );
+            rlVertex3f(av.x, av.y, av.z);
+            rlVertex3f(bv.x, bv.y, bv.z);
+        }
+        rlEnd();
     }
 };
 
@@ -302,12 +355,12 @@ int main(int argc, char *argv[])
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(1920, 1080, TITLE.data());
     DisableCursor();
-    SetTargetFPS(60);
+    SetTargetFPS(120);
 
     ATCamera::CameraController cameraController;
     Material gizmoMat = LoadMaterialDefault();
     std::unique_ptr<TransformGizmo> transformGizmo = std::make_unique<TransformGizmo>();
-    randomizeTransformGizmo(*transformGizmo);
+    //randomizeTransformGizmo(*transformGizmo);
 
     while (!WindowShouldClose())
     {
@@ -317,10 +370,12 @@ int main(int argc, char *argv[])
         ClearBackground(backgroundColor);
         {
             ATCamera::CameraRenderGuard cameraRenderGuard(cameraController);
+
             TransformGizmo& tGiz = *transformGizmo;
-            tGiz.Update(cameraController);
-            tGiz.DrawBB();
-            tGiz.DrawTransformGizmo(gizmoMat);
+            //tGiz.Update(cameraController);
+            //tGiz.DrawBB();
+            //tGiz.DrawTransformGizmo(gizmoMat);
+            tGiz.DrawRotationGizmo();
 
             DrawSphere({0,0,0}, .05, BLACK);
             DrawSphere({1,1,1}, .05, WHITE);
