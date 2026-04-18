@@ -4,6 +4,7 @@
 #include "glm/gtx/intersect.hpp"
 #include "glm/gtx/quaternion.hpp"
 #include <glm/gtx/dual_quaternion.hpp>
+#include <glm/gtx/vector_angle.hpp>
 
 
 using glm::vec2;
@@ -223,6 +224,16 @@ vec3 ATMath::perpendicular(const vec3& v)
     if (std::abs(v.y) < std::abs(v.z))
         return vec3{-v.z, 0, v.x};
     return vec3{-v.y, v.x, 0};
+}
+
+float ATMath::signedAngleBetween(const vec3& from, const vec3& to, const vec3& axis)
+{
+    const vec3 cross = glm::cross(from, to);
+    if (glm::length2(cross) < 1e-10f)
+        return 0.0f;
+    const float sinAngle = glm::dot(axis, cross); // signed sin(angle)
+    const float cosAngle = glm::dot(from, to);
+    return glm::atan(sinAngle, cosAngle);
 }
 
 std::array<vec3,8> ATMath::getCubeCorners(const vec3& hSize)

@@ -51,8 +51,12 @@ class TransformGizmo
     vec3 _hsize = glm::one<vec3>();
 
     // will delete at some point
-    ATMath::Axis _selectedAxis = ATMath::Axis::None;
+    // a Transform gizmo that is "locked" skips Update
+    // but can still draw. This is useful for setting a reference point in scene,
+    // but do not want to incur the heaviness of the update methods..
+    bool _locked = false;
     ActiveGizmoTool _activeGizmoTool = ActiveGizmoTool::Translation;
+    ATMath::Axis _selectedAxis = ATMath::Axis::None;
     vec3 _lastAxisPosition = ATMath::kVec3Zero;
     vec3 _lastSphericalPosition = ATMath::kVec3Zero;
 
@@ -70,6 +74,10 @@ public:
         UnloadMaterial(_gizmoMat);
     }
 
+    void SetLocked(const bool locked)
+    {
+        _locked = locked;
+    }
     [[nodiscard]] vec3 GetPosition() const
     {
         return _transform.getPosition();
@@ -93,6 +101,12 @@ public:
 
     void Update(const ATCamera::CameraController& cameraController)
     {
+        if (_locked)
+        {
+            DrawTransformGizmo();
+            return;
+        }
+
         if (IsKeyPressed(KeyboardKey::KEY_Q))
         {
             _activeGizmoTool = _activeGizmoTool == ActiveGizmoTool::Translation ?
@@ -170,15 +184,21 @@ public:
     }
     void DrawRotationGizmo() const
     {
+        constexpr Color kSelectedColor{255,0,255, 255};
         constexpr Color kXAxisColor{255,0,0, 255};
         constexpr Color kYAxisColor{0,255,0, 255};
         constexpr Color kZAxisColor{0,0,255, 255};
         const auto [right, up, forward] = _transform.extractAxes();
 
         const vec3 cpos = _transform.getPosition();
-        DrawCircleAroundAxis(1, right, kXAxisColor, cpos);
-        DrawCircleAroundAxis(1, up, kYAxisColor, cpos);
-        DrawCircleAroundAxis(1, forward, kZAxisColor, cpos);
+
+        Color cColor = _selectedAxis == ATMath::Axis::X ? kSelectedColor : kXAxisColor;
+        DrawCircleAroundAxis(1, right, cColor, cpos);
+        cColor = _selectedAxis == ATMath::Axis::Y ? kSelectedColor : kYAxisColor;
+        DrawCircleAroundAxis(1, up, cColor, cpos);
+        cColor = _selectedAxis == ATMath::Axis::Z ? kSelectedColor : kZAxisColor;
+        DrawCircleAroundAxis(1, forward, cColor, cpos);
+
         constexpr Color gizmoSphereColor{0,0,0,33};
         DrawSphere(toRLVec(cpos), 1, gizmoSphereColor);
     }
@@ -296,6 +316,35 @@ private:
 
         const vec2 params = res.value();
         const vec3 sphereIntersectPoint = ATMath::evaluateRay(mRay, params.x);
+        const vec3 nlsp = glm::normalize(_lastSphericalPosition - cpos);
+        const vec3 nsip = glm::normalize(sphereIntersectPoint - cpos);
+        const vec3 cross = glm::normalize(glm::cross(nlsp, nsip));
+        const vec3 freeLocalAxis = _transform.inverseTransformDirection(cross);
+        // axis locking modifier key
+        constexpr KeyboardKey kAxisLockingModifierKey = KEY_LEFT_ALT;
+        if (IsKeyDown(kAxisLockingModifierKey))
+        {
+            if (_selectedAxis == ATMath::Axis::None)
+            {
+                static const auto dominantAxis = [](const vec3& v)
+                {
+                    const vec3 abs = glm::abs(v);
+                    if (abs.x >= abs.y && abs.x >= abs.z)
+                        return ATMath::Axis::X;
+                    if (abs.y >= abs.x && abs.y >= abs.z)
+                        return ATMath::Axis::Y;
+                    return ATMath::Axis::Z;
+                };
+                // On first frame alt is held, snap to the dominant local axis
+                _selectedAxis = dominantAxis(freeLocalAxis);
+            }
+        }
+        else
+        {
+            // Alt released — clear lock so next alt-press picks a fresh axis
+            _selectedAxis = ATMath::Axis::None;
+        }
+
         // uncomment to debug intersection point
         //const Vector3 ip{sphereIntersectPoint.x, sphereIntersectPoint.y, sphereIntersectPoint.z};
         //DrawSphere(ip, 0.01f, ORANGE);
@@ -304,23 +353,42 @@ private:
             _lastSphericalPosition = sphereIntersectPoint;
             return;
         }
+
         if (IsMouseButtonDown(MouseButton::MOUSE_BUTTON_LEFT))
         {
-            const vec3 nlsp = glm::normalize(_lastSphericalPosition - cpos);
-            const vec3 nsip = glm::normalize(sphereIntersectPoint - cpos);
-            const vec3 cross = glm::cross(nlsp, nsip);
             // Skip this frame if points are too close (mouse hasn't moved enough)
             if (glm::length2(cross) < 1e-6f)
             {
                 _lastSphericalPosition = sphereIntersectPoint;
                 return;
             }
-            const float angleBetween = glm::angle(nlsp, nsip);
-            if (angleBetween < 0.0001f)
+            const float angleBetween = ATMath::signedAngleBetween(nlsp, nsip, cross);
+            if (std::abs(angleBetween) < 0.0001f)
                 return;
 
-            const vec3 localAxis = _transform.inverseTransformDirection(glm::normalize(cross));
-            _transform =  _transform * glm::angleAxis(angleBetween, localAxis);
+            vec3 axisToUse;
+            switch (_selectedAxis)
+            {
+                case ATMath::Axis::None:
+                    axisToUse = freeLocalAxis;
+                    break;
+                case ATMath::Axis::X:
+                    axisToUse = ATMath::kVec3Right;//_transform.inverseTransformDirection(ATMath::kVec3Right);
+                    break;
+                case ATMath::Axis::Y:
+                    axisToUse = ATMath::kVec3Up;;//_transform.inverseTransformDirection(ATMath::kVec3Up);
+                    break;
+                case ATMath::Axis::Z:
+                    axisToUse = ATMath::kVec3Forward;//_transform.inverseTransformDirection(ATMath::kVec3Forward);
+                    break;
+                default:
+                    throw std::exception("Not expecting a new value here...");
+            }
+            const float finalAngleBetween = ATMath::signedAngleBetween(nlsp, nsip, axisToUse);
+            if (std::abs(finalAngleBetween) < 0.0001f)
+                return;
+
+            _transform =  _transform * glm::angleAxis(finalAngleBetween, axisToUse);
             _lastSphericalPosition = sphereIntersectPoint;
         }
     }
@@ -402,13 +470,15 @@ struct DrawGuard
     }
 };
 
-void drawEnvironment()
+void drawEnvironment(const std::unique_ptr<TransformGizmo>& originGizmo)
 {
     DrawSphere({0,0,0}, .05, BLACK);
     DrawSphere({1,0,0}, .05, RED);
     DrawSphere({0,1,0}, .05, GREEN);
     DrawSphere({0,0,1}, .05, BLUE);
     DrawGrid(30, 1.0f);
+
+    originGizmo->DrawTransformGizmo();
 }
 
 int main(int argc, char *argv[])
@@ -421,6 +491,8 @@ int main(int argc, char *argv[])
     ATCamera::CameraController cameraController;
     Material gizmoMat = LoadMaterialDefault();
     std::unique_ptr<TransformGizmo> transformGizmo = std::make_unique<TransformGizmo>();
+    std::unique_ptr<TransformGizmo> originGizmo = std::make_unique<TransformGizmo>();
+    originGizmo->SetLocked(true);
 
     while (!WindowShouldClose())
     {
@@ -431,10 +503,9 @@ int main(int argc, char *argv[])
         {
             ATCamera::CameraRenderGuard cameraRenderGuard(cameraController);
 
-            TransformGizmo& tGiz = *transformGizmo;
-            tGiz.Update(cameraController);
+            transformGizmo->Update(cameraController);
 
-            drawEnvironment();
+            drawEnvironment(originGizmo);
         }
     }
 

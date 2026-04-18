@@ -104,6 +104,7 @@ namespace ATMath
 
     bool isNormalized(const glm::vec3& v);
     glm::vec3 perpendicular(const glm::vec3& v);
+    float signedAngleBetween(const glm::vec3& from, const glm::vec3& to, const glm::vec3& axis);
     std::array<glm::vec3,8> getCubeCorners(const glm::vec3& hSize);
     ATMath::Ray transformRay(const Transform& transform, const Ray& ray);
     glm::vec3 evaluateRay(const Ray& ray, float param);
