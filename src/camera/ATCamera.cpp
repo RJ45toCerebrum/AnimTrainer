@@ -1,7 +1,7 @@
 // Created by Tyler on 4/15/2026.
 
 #include "ATCamera.h"
-#include "raylib.h"
+#include "ATMath.h"
 
 using ATCamera::ATCameraPtr;
 using CameraCon = ATCamera::CameraController;
@@ -58,9 +58,12 @@ CamGuard::~CameraRenderGuard()
     EndMode3D();
 }
 
-Ray CameraCon::GetWorldMouseRay() const
+ATMath::Ray CameraCon::GetWorldMouseRay() const
 {
     Camera3D& cam3D = GetCamera();
-    return GetScreenToWorldRay(GetMousePosition(), cam3D);
+    const auto [position, dir] = GetScreenToWorldRay(GetMousePosition(), cam3D);
+    const glm::vec3 origin{position.x, position.y, position.z};
+    const glm::vec3 direction{dir.x, dir.y, dir.z};
+    return ATMath::Ray{origin, direction};
 }
 

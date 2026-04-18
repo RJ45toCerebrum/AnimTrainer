@@ -3,4 +3,4 @@ add_library(ATMath STATIC
 )
 target_include_directories(ATMath PUBLIC include)
 target_link_libraries(ATMath PUBLIC raylib)
-target_link_libraries(ATMath PRIVATE glm::glm)
+target_link_libraries(ATMath PUBLIC glm::glm)

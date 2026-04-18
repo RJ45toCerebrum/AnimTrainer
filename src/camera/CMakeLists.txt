@@ -8,5 +8,5 @@ add_library(Camera STATIC
 # Export the include directory so others can use it
 target_include_directories(Camera PUBLIC include)
 target_link_libraries(Camera PUBLIC raylib)
-
-target_link_libraries(Camera PUBLIC raylib)
+target_link_libraries(Camera PUBLIC ATMath)
+target_link_libraries(Camera PUBLIC glm::glm)

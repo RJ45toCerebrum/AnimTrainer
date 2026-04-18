@@ -3,6 +3,7 @@
 #pragma once
 
 #include <memory>
+#include "ATMath.h"
 #include "raylib.h"
 
 namespace ATCamera
@@ -31,7 +32,7 @@ namespace ATCamera
         CameraController& operator=(const CameraController&) = delete;
 
         [[nodiscard]] Camera3D& GetCamera() const;
-        [[nodiscard]] Ray GetWorldMouseRay() const;
+        [[nodiscard]] ATMath::Ray GetWorldMouseRay() const;
 
         void Update();
     };
