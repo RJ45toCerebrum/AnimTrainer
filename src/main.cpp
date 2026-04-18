@@ -86,12 +86,13 @@ public:
 
     void Update(const ATCamera::CameraController& cameraController)
     {
-        // this primarily just selects axis to highlight
-        SetSelected(ATMath::Axis::None);
         const ATRay mRay = cameraController.GetWorldMouseRay();
         const RayCollision rayCol = ATMath::getRayCollisionOBB(mRay, transform, hsize);
         if (not rayCol.hit)
+        {
+            SetSelected(ATMath::Axis::None);
             return;
+        }
 
         const auto [right, up, forward] = GetWorldAxes();
         const vec3 curGizmoPos = GetPosition();
@@ -111,18 +112,43 @@ public:
         diff = cv - cpOnZRay;
         const float zLength = glm::dot(diff, diff);
 
-        vec3 closestAxisPoint;
-        if (xLength < yLength)
+
+        vec3 closestAxisPoint = glm::zero<vec3>();
+        vec3 movementDirection = glm::zero<vec3>();
+        const bool leftMouseDown = IsMouseButtonDown(MouseButton::MOUSE_BUTTON_LEFT);
+        if (leftMouseDown and selectedAxis != ATMath::Axis::None)
+        {
+            // in this if block, if we hold the mouse down, we never allow switch
+            // to different axis because it results in sudden jumps in the gizmo.
+            if (selectedAxis == ATMath::Axis::X)
+            {
+                closestAxisPoint = cpOnXRay;
+                movementDirection = right;
+            }
+            else if (selectedAxis == ATMath::Axis::Y)
+            {
+                closestAxisPoint = cpOnYRay;
+                movementDirection = up;
+            }
+            else
+            {
+                closestAxisPoint = cpOnZRay;
+                movementDirection = forward;
+            }
+        }
+        else if (xLength < yLength)
         {
             if (zLength < xLength)
             {
                 SetSelected(ATMath::Axis::Z);
                 closestAxisPoint = cpOnZRay;
+                movementDirection = forward;
             }
             else
             {
                 SetSelected(ATMath::Axis::X);
                 closestAxisPoint = cpOnXRay;
+                movementDirection = right;
             }
         }
         else
@@ -131,23 +157,30 @@ public:
             {
                 SetSelected(ATMath::Axis::Z);
                 closestAxisPoint = cpOnZRay;
+                movementDirection = forward;
             }
             else
             {
                 SetSelected(ATMath::Axis::Y);
                 closestAxisPoint = cpOnYRay;
+                movementDirection = up;
             }
         }
+        // comment out to remove debug sphere
+        DrawSphere(ATMath::toRLVec(closestAxisPoint), 0.03f, ORANGE);
 
-        // regardless of whether an axis is selected, we will need to keep track of the closest closestAxisPoint
-        // so the movement does not jump... This is why I just rest it here...
-        if (std::ranges::min({xLength, zLength, yLength}) > 0.005f)
-            SetSelected(ATMath::Axis::None);
-
-        DrawSphere(ATMath::toRLVec(closestAxisPoint), 0.03f, GREEN);
-        if (IsMouseButtonDown(MouseButton::MOUSE_BUTTON_LEFT))
+        if (!leftMouseDown)
         {
-            const vec3 newGizmoPos = curGizmoPos + (closestAxisPoint - lastAxisPosition);
+            // too far from axis to select...
+            if (std::ranges::min({xLength, zLength, yLength}) > 0.005f)
+                SetSelected(ATMath::Axis::None);
+        }
+        else
+        {
+            const vec3 v = closestAxisPoint - lastAxisPosition;
+            // movementDirection = the direction of the selected axis...
+            // prevents jumping...
+            const vec3 newGizmoPos = curGizmoPos + glm::dot(v, movementDirection) * movementDirection;
             SetPosition(newGizmoPos);
         }
         lastAxisPosition = closestAxisPoint;
