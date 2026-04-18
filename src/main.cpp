@@ -70,10 +70,6 @@ public:
         UnloadMaterial(_gizmoMat);
     }
 
-    [[nodiscard]] ATTransform GetCurrentTransform() const
-    {
-        return _transform;
-    }
     [[nodiscard]] vec3 GetPosition() const
     {
         return _transform.getPosition();
@@ -81,18 +77,6 @@ public:
     void SetPosition(const vec3& p)
     {
         _transform.setPosition(p);
-    }
-    [[nodiscard]] vec3 GetExtents() const
-    {
-        return this->_hsize;
-    }
-    void SetExtents(const vec3& extents)
-    {
-        _hsize = extents;
-    }
-    [[nodiscard]] quat GetRotation() const
-    {
-        return _transform.getRotation();
     }
     void SetRotation(const quat& q)
     {
@@ -229,8 +213,8 @@ private:
         const float zLength = glm::dot(diff, diff);
 
 
-        auto closestAxisPoint = glm::zero<vec3>();
-        auto movementDirection = glm::zero<vec3>();
+        vec3 closestAxisPoint;
+        vec3 movementDirection;
         const bool leftMouseDown = IsMouseButtonDown(MouseButton::MOUSE_BUTTON_LEFT);
         if (leftMouseDown and _selectedAxis != ATMath::Axis::None)
         {
