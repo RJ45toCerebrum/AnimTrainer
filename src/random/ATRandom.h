@@ -3,7 +3,6 @@
 
 #include <common.h>
 #include <ATMath.h>
-#include "raymath.h"
 
 START_NAMESPACE(ATRandom)
 
