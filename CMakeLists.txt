@@ -46,6 +46,8 @@ add_subdirectory(src/camera)
 target_link_libraries(AnimTrainer PRIVATE Camera)
 add_subdirectory(src/math)
 target_link_libraries(AnimTrainer PRIVATE ATMath)
+add_subdirectory(src/scene)
+target_link_libraries(AnimTrainer PRIVATE ATScene)
 
 
 target_sources(AnimTrainer PRIVATE

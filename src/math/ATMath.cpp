@@ -1,6 +1,5 @@
 // Created by Tyler on 4/15/2026.
 #include "ATMath.h"
-//#include "raymath.h"
 #include "glm/gtx/intersect.hpp"
 #include "glm/gtx/quaternion.hpp"
 #include <glm/gtx/dual_quaternion.hpp>

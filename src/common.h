@@ -4,7 +4,7 @@
 #define END_NAMESPACE }
 
 // any code handling an observer ptr should never delete.
-// this is in case we need to pass raw pointers around rather than shared/unique/weak
+// You are NOT the owner of pointer...
 template <typename T>
-using observer = T*;
+using Observer = T*;
 

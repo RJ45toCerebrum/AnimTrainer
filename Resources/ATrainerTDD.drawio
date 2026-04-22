@@ -1,0 +1,144 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/25.0.2 Chrome/128.0.6613.186 Electron/32.2.5 Safari/537.36" version="25.0.2">
+  <diagram name="NodeConnectionStructure" id="29TmNS1gojIgb_evbrKl">
+    <mxGraphModel dx="1728" dy="997" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-43" value="ATSceneGraph" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;fontSize=17;" vertex="1" parent="1">
+          <mxGeometry x="20" y="140" width="800" height="830" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-5" value="ATSceneNode" style="html=1;whiteSpace=wrap;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="190" y="490" width="480" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-6" value="InputAttribute[0]" style="html=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="220" y="500" width="110" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-7" value="InputAttribute[1]" style="html=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="375" y="500" width="110" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-8" value="InputAttribute[N-1]" style="html=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="535" y="500" width="110" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-9" value="&lt;font&gt;...&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=22;" vertex="1" parent="1">
+          <mxGeometry x="490" y="500" width="40" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-10" value="ATSceneNode" style="html=1;whiteSpace=wrap;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="100" y="260" width="170" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-11" value="OutputAttribute[0]" style="html=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="217.5" y="610" width="110" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-12" value="OutputAttribute[1]" style="html=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="372.5" y="610" width="110" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-13" value="OutputAttribute[N-1]" style="html=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="532.5" y="610" width="117.5" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-14" value="&lt;font&gt;...&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=22;" vertex="1" parent="1">
+          <mxGeometry x="487.5" y="610" width="40" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-21" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="5WDIMVf6dm-oXFQrB_wC-15" target="5WDIMVf6dm-oXFQrB_wC-6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-15" value="OutputAttribute[0]" style="html=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="130" y="310" width="110" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-18" value="ATSceneNode" style="html=1;whiteSpace=wrap;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="600" y="250" width="170" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-20" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="5WDIMVf6dm-oXFQrB_wC-19" target="5WDIMVf6dm-oXFQrB_wC-8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-19" value="OutputAttribute[0]" style="html=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="630" y="300" width="110" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-22" value="ATSceneNode" style="html=1;whiteSpace=wrap;verticalAlign=bottom;" vertex="1" parent="1">
+          <mxGeometry x="40" y="820" width="170" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-23" value="InputAttribute[0]" style="html=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="70" y="840" width="110" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-25" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="5WDIMVf6dm-oXFQrB_wC-11" target="5WDIMVf6dm-oXFQrB_wC-23">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-26" value="ATSceneNode" style="html=1;whiteSpace=wrap;verticalAlign=bottom;" vertex="1" parent="1">
+          <mxGeometry x="300" y="820" width="170" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-27" value="InputAttribute[0]" style="html=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="330" y="840" width="110" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-28" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="5WDIMVf6dm-oXFQrB_wC-11" target="5WDIMVf6dm-oXFQrB_wC-27">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-29" value="&lt;p style=&quot;margin:0px;margin-top:6px;text-align:center;&quot;&gt;&lt;b&gt;Attribute&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;NodeRef nodeOwner&lt;br&gt;AttributeDataType dataType&lt;br&gt;&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;AttributeDirection direction&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;bool isArray&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&lt;font color=&quot;#ff6666&quot;&gt;bool isDirty&lt;/font&gt;&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&lt;font color=&quot;#cccccc&quot;&gt;AttributeHandle inputSource&lt;/font&gt;&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&lt;span style=&quot;color: rgb(234, 236, 240);&quot;&gt;AttributeArray outputSources&lt;/span&gt;&lt;br&gt;&lt;/p&gt;" style="align=left;overflow=fill;html=1;dropTarget=0;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="870" y="764" width="250" height="186" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-30" value="" style="shape=component;jettyWidth=8;jettyHeight=4;" vertex="1" parent="5WDIMVf6dm-oXFQrB_wC-29">
+          <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
+            <mxPoint x="-24" y="4" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-31" value="ATSceneGraph" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=26;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="870" y="350" width="470" height="368" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-32" value="+ nodes: NodeMap" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="5WDIMVf6dm-oXFQrB_wC-31">
+          <mxGeometry y="26" width="470" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-35" value="+ STATIC factories: FactoryMap" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="5WDIMVf6dm-oXFQrB_wC-31">
+          <mxGeometry y="48" width="470" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-33" value="" style="line;strokeWidth=1;fillColor=none;align=left;verticalAlign=middle;spacingTop=-1;spacingLeft=3;spacingRight=3;rotatable=0;labelPosition=right;points=[];portConstraint=eastwest;strokeColor=inherit;" vertex="1" parent="5WDIMVf6dm-oXFQrB_wC-31">
+          <mxGeometry y="74" width="470" height="8" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-34" value="&lt;span style=&quot;font-weight: 700; text-align: center;&quot;&gt;ATSceneGraph() = delete&lt;/span&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="5WDIMVf6dm-oXFQrB_wC-31">
+          <mxGeometry y="82" width="470" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-37" value="&lt;div style=&quot;text-align: center;&quot;&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;&lt;b&gt;STATIC void registerNodeFactory(&lt;/b&gt;&lt;/span&gt;&lt;span style=&quot;background-color: initial; text-align: left;&quot;&gt;ATNodeFactory&amp;amp;&amp;amp;)&lt;/span&gt;&lt;/div&gt;&lt;div style=&quot;text-align: center;&quot;&gt;&lt;span style=&quot;background-color: initial; text-align: left;&quot;&gt;&lt;br&gt;&lt;/span&gt;&lt;/div&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="5WDIMVf6dm-oXFQrB_wC-31">
+          <mxGeometry y="108" width="470" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-38" value="&lt;div style=&quot;text-align: center;&quot;&gt;NodeRef createNode(NodeTypeID, std::string&amp;amp;&amp;amp;);&lt;/div&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="5WDIMVf6dm-oXFQrB_wC-31">
+          <mxGeometry y="134" width="470" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-40" value="&lt;div style=&quot;text-align: center;&quot;&gt;bool deleteNode(NodeID);&lt;/div&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="5WDIMVf6dm-oXFQrB_wC-31">
+          <mxGeometry y="160" width="470" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-41" value="&lt;div style=&quot;text-align: center;&quot;&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;NodeRef&lt;/span&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;&amp;nbsp;&lt;/span&gt;getNode(NodeID);&lt;/div&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="5WDIMVf6dm-oXFQrB_wC-31">
+          <mxGeometry y="186" width="470" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-42" value="&lt;div style=&quot;text-align: center;&quot;&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;AttrRef&lt;/span&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;&amp;nbsp;&lt;/span&gt;resolveHandle(ATAttributeHandle);&lt;/div&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="5WDIMVf6dm-oXFQrB_wC-31">
+          <mxGeometry y="212" width="470" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-44" value="&lt;div style=&quot;text-align: center;&quot;&gt;bool connect(ATAttributeHandle output,&amp;nbsp;&lt;span style=&quot;background-color: initial;&quot;&gt;ATAttributeHandle&lt;/span&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;&amp;nbsp;input&lt;/span&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;);&lt;/span&gt;&lt;/div&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="5WDIMVf6dm-oXFQrB_wC-31">
+          <mxGeometry y="238" width="470" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-45" value="&lt;div style=&quot;text-align: center;&quot;&gt;bool disconnect(ATAttributeHandle output,&amp;nbsp;&lt;span style=&quot;background-color: initial;&quot;&gt;ATAttributeHandle&lt;/span&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;&amp;nbsp;input&lt;/span&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;);&lt;/span&gt;&lt;/div&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="5WDIMVf6dm-oXFQrB_wC-31">
+          <mxGeometry y="264" width="470" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-46" value="&lt;div style=&quot;text-align: center;&quot;&gt;bool formsCycle(ATAttributeHandle output,&amp;nbsp;&lt;span style=&quot;background-color: initial;&quot;&gt;ATAttributeHandle&lt;/span&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;&amp;nbsp;input&lt;/span&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;);&lt;/span&gt;&lt;/div&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="5WDIMVf6dm-oXFQrB_wC-31">
+          <mxGeometry y="290" width="470" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-47" value="&lt;div style=&quot;text-align: center;&quot;&gt;void evaluate(ATAttributeHandle targetHandle&lt;span style=&quot;background-color: initial;&quot;&gt;);&lt;/span&gt;&lt;/div&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="5WDIMVf6dm-oXFQrB_wC-31">
+          <mxGeometry y="316" width="470" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-48" value="&lt;div style=&quot;text-align: center;&quot;&gt;SGItr dagItrForType(NodeTypeID&lt;span style=&quot;background-color: initial;&quot;&gt;);&lt;/span&gt;&lt;/div&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="5WDIMVf6dm-oXFQrB_wC-31">
+          <mxGeometry y="342" width="470" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-39" value="&lt;h1 style=&quot;margin-top: 0px;&quot;&gt;Aliases&lt;/h1&gt;&lt;p&gt;NodeID =&amp;gt; uint32_t&lt;/p&gt;&lt;p&gt;NodeTypeID =&amp;gt; uint32_t&lt;/p&gt;&lt;p&gt;NodeMap =&amp;gt;&amp;nbsp;&lt;span style=&quot;background-color: initial;&quot;&gt;std::unordered_map&amp;lt;NodeID, std::unique_ptr&amp;lt;ATSceneNode&amp;gt;&amp;gt;&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;FactoryMap =&amp;gt;&amp;nbsp;&lt;/span&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;std::unordered_map&amp;lt;NodeTypeID, ATNodeFactory&amp;gt;&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;AtrrRef =&amp;gt;&amp;nbsp;&lt;/span&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;std&lt;/span&gt;&lt;span style=&quot;background-color: initial; color: rgb(211, 215, 222);&quot; class=&quot;token token double-colon&quot;&gt;::&lt;/span&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;optional&lt;/span&gt;&lt;span style=&quot;background-color: initial; color: rgb(234, 236, 240);&quot; class=&quot;token token&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;std&lt;/span&gt;&lt;span style=&quot;background-color: initial; color: rgb(211, 215, 222);&quot; class=&quot;token token double-colon&quot;&gt;::&lt;/span&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;reference_wrapper&lt;/span&gt;&lt;span style=&quot;background-color: initial; color: rgb(234, 236, 240);&quot; class=&quot;token token&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;ATAttribute&lt;/span&gt;&lt;span style=&quot;background-color: initial; color: rgb(234, 236, 240);&quot; class=&quot;token token&quot;&gt;&amp;gt;&amp;gt;&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot;background-color: initial; color: rgb(234, 236, 240);&quot; class=&quot;token token&quot;&gt;ATNodeRef =&amp;gt;&amp;nbsp;&lt;/span&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;std&lt;/span&gt;&lt;span style=&quot;background-color: initial; color: rgb(211, 215, 222);&quot; class=&quot;token token double-colon&quot;&gt;::&lt;/span&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;optional&lt;/span&gt;&lt;span style=&quot;background-color: initial; color: rgb(234, 236, 240);&quot; class=&quot;token token&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;std&lt;/span&gt;&lt;span style=&quot;background-color: initial; color: rgb(211, 215, 222);&quot; class=&quot;token token double-colon&quot;&gt;::&lt;/span&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;reference_wrapper&lt;/span&gt;&lt;span style=&quot;background-color: initial; color: rgb(234, 236, 240);&quot; class=&quot;token token&quot;&gt;&amp;lt;&lt;/span&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;ATGraphNode&lt;/span&gt;&lt;span style=&quot;background-color: initial; color: rgb(234, 236, 240);&quot; class=&quot;token token&quot;&gt;&amp;gt;&amp;gt;&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot;background-color: initial; color: rgb(234, 236, 240);&quot; class=&quot;token token&quot;&gt;Observer =&amp;gt; T* (raw pointer but callee does not own it and shoudl not delete)&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot;background-color: initial; color: rgb(234, 236, 240);&quot; class=&quot;token token&quot;&gt;&lt;span style=&quot;text-align: center; background-color: initial; color: rgb(240, 240, 240);&quot;&gt;SGItr&lt;/span&gt;&lt;span style=&quot;text-align: center; background-color: initial; color: rgb(240, 240, 240);&quot;&gt;&amp;nbsp;&lt;/span&gt;=&amp;gt; Scene Graph Itr&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot;background-color: initial; color: rgb(234, 236, 240);&quot; class=&quot;token token&quot;&gt;AttributeArray =&amp;gt; std::vector&amp;lt;AttributeHandle&amp;gt;&lt;/span&gt;&lt;/p&gt;" style="text;html=1;whiteSpace=wrap;overflow=hidden;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="880" y="15" width="480" height="295" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-53" value="&lt;p style=&quot;margin:0px;margin-top:4px;text-align:center;text-decoration:underline;&quot;&gt;&lt;b&gt;ENUM AttributeDataType : uint6&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;bool&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;int&lt;br&gt;int64&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;float&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;double&lt;br&gt;iVec2&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;iVec3&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;iVec4&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;fVec2&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;fVec3&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;fVec4&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;dVec2&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;dVec3&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;dVec4&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;quaternion&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;color&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;matrix4x4&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;custom&lt;/p&gt;" style="verticalAlign=top;align=left;overflow=fill;html=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="1380" y="730" width="290" height="310" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-54" value="AttributeHandle" style="swimlane;fontStyle=0;childLayout=stackLayout;horizontal=1;startSize=26;fillColor=none;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="1205" y="762" width="140" height="78" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-55" value="NodeID nodeID" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="5WDIMVf6dm-oXFQrB_wC-54">
+          <mxGeometry y="26" width="140" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="5WDIMVf6dm-oXFQrB_wC-56" value="uint16 attrIndex" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="5WDIMVf6dm-oXFQrB_wC-54">
+          <mxGeometry y="52" width="140" height="26" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
