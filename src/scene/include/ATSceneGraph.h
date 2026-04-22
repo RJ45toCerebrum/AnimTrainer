@@ -9,11 +9,14 @@
 
 START_NAMESPACE(ATScene)
 
-class ATSceneGraph
+class ATSceneGraph final
 {
+    // TODO: protect with mutex? When multiple threads come into play I will do thread safe check
+    // oon various data structures. Too soon for that right now...
     static std::unordered_map<NodeTypeID, std::unique_ptr<ISceneNodeFactory>> _factories;
     uint64_t _sceneHash = 0;
     NodeID _nextID = 0;
+    // TODO: change to straight std::vector. Better performance but just moving on. Will do.
     std::unordered_map<NodeID, std::unique_ptr<ATSceneNode>> _nodes;
 
 private:

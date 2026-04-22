@@ -29,6 +29,7 @@ class ATSceneNode
 {
     friend class ATSceneGraph;
 
+    // Attributes are solely owned by the scene node.
     using AttributePtr = std::unique_ptr<ATAttribute>;
 
     const NodeID _nodeID;
@@ -37,9 +38,13 @@ class ATSceneNode
     std::vector<AttributePtr> _outputAttributes;
 
 public:
+    // TODO: pass in polymorphic pool resource.
     ATSceneNode(const NodeID nodeID, const std::string_view& name) :
         _nodeID(nodeID), _name(name)
-    {}
+    {
+        _inputAttributes.reserve(3);
+        _outputAttributes.reserve(3);
+    }
     virtual ~ATSceneNode() = default;
 
     [[nodiscard]] NodeID getNodeID() const;
@@ -61,32 +66,32 @@ public:
     [[nodiscard]] bool isValidAttrHandle(const ATAttributeHandle& ah) const;
     /// NOTE: Will return false if ah points to output handle and return false if input handle not plugged
     [[nodiscard]] bool isPlugged(const ATAttributeHandle& ah) const;
-    [[nodiscard]] bool setUnpluggedInputAttrData(const ATAttributeHandle& ah, const AttributeData& attrData) const;
+    [[nodiscard]] bool setUnpluggedInputAttrData(const ATAttributeHandle& ah, const AttributeData& attrData);
 
 protected:
-    [[nodiscard]] const AttributePtr& getAttributePtr(const ATAttributeHandle& ah) const;
+    [[nodiscard]] const ATAttribute& getAttributeRef(const ATAttributeHandle& ah) const;
+    [[nodiscard]] const ATAttribute& getAttributeRefUnchecked(const ATAttributeHandle& ah) const;
     /// where each node type implements node specific logic.
     /// This is called by the Scene Graph when graph evaluation occurs.
     /// i.e. when program entity calls getData on attribute handle.
     virtual void compute(const ATAttributeHandle& ah) = 0;
     void markOutputsDirty();
-    /// should only be called in constructor body of derived ATSceneNode's.
-    ATAttributeHandle registerInputAttribute(AttributeDataType type, bool isArray);
-    ATAttributeHandle registerOutputAttribute(AttributeDataType type, bool isArray);
+    void markInputDirty(const ATAttributeHandle& ah);
+    /// ALL nodes should register their attributes in the constructor body AND ONLY constructor body.
+    ATAttributeHandle registerInputAttribute(AttributePtr newAttribute);
+    ATAttributeHandle registerOutputAttribute(AttributePtr newAttribute);
 
 private:
-    bool connect(const ATAttributeHandle& outputAttrHandle, const ATAttributeHandle& inputAttrHandle);
-    // because input attributes can only have one source, input ah is only required...
-    bool disconnect(const ATAttributeHandle& inputAttrHandle);
     [[nodiscard]] ATAttributeHandle convertToHandle(AttributeDirection dataFlow, uint16_t index) const;
 };
 
 class ISceneNodeFactory
 {
 public:
+    // TODO: make ability to pass through args via std::forward...
+    virtual std::unique_ptr<ATSceneNode> createSceneNode() = 0;
     virtual ~ISceneNodeFactory() = default;
     [[nodiscard]] virtual NodeTypeID getNodeTypeID() const = 0;
-    virtual std::unique_ptr<ATSceneNode> createSceneNode() = 0;
 };
 
 

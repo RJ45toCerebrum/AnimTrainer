@@ -47,9 +47,9 @@ enum class AttributeDataType : uint16_t
     Custom
 };
 
-// Helper to map C++ types to AttributeDataType
+// compile-time typename T => AttributeDataType
 template<typename T>
-constexpr AttributeDataType getEnumForType()
+consteval AttributeDataType getEnumForType()
 {
     if constexpr (std::is_same_v<T, bool>)
         return AttributeDataType::Bool;
@@ -145,12 +145,13 @@ class ATAttributeHandle final
 {
     friend class ATSceneNode;
 
+    /// TODO: probably should have a generation hash to ensure this handle is valid for current scene graph (aka scene reload)
     const NodeID _nodeID;
     const uint16_t _index;
     const AttributeDirection _dataFlowDir;
 
-    // ONLY the scene node should create attribute handles because its only
-    // entity that has sufficient information to create it.
+private:
+    // ONLY the scene node should create attribute handles because its only entity that has sufficient information to create it.
     ATAttributeHandle(const NodeID inNodeID, const uint16_t inIndex, const AttributeDirection inDir) :
         _nodeID(inNodeID), _index(inIndex), _dataFlowDir(inDir)
     {}
@@ -258,6 +259,7 @@ private:
     // this only sets the _dirty flag. SceneGraph is responsible for marking all downstream attributes...
     void markDirty();
     void markClean();
+    [[nodiscard]] std::vector<ATAttributeHandle> getSources() const;
 };
 
 END_NAMESPACE
