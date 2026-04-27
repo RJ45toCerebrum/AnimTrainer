@@ -1,6 +1,9 @@
 // Created by Tyler on 4/21/2026.
-#include "ATSceneGraph.h"
+#ifndef GLM_ENABLE_EXPERIMENTAL
+#define GLM_ENABLE_EXPERIMENTAL
+#endif
 
+#include "ATSceneGraph.h"
 
 START_NAMESPACE(ATScene)
 

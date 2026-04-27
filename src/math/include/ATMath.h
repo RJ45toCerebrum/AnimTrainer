@@ -3,12 +3,11 @@
 
 #ifndef GLM_ENABLE_EXPERIMENTAL
 #define GLM_ENABLE_EXPERIMENTAL
-#include <expected>
-#include <optional>
 #endif
 
 #include <array>
 #include <tuple>
+#include <optional>
 
 #include "raylib.h"
 

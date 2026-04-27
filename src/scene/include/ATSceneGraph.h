@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <functional>
 #include <random>
+#include <expected>
 
 START_NAMESPACE(ATScene)
 
