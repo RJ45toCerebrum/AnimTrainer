@@ -9,44 +9,58 @@
 
 START_NAMESPACE(ATScene)
 
+class NodeFactoryNotFound : public std::runtime_error
+{
+    NodeTypeID _invalidTypeId;
+public:
+    explicit NodeFactoryNotFound(const NodeTypeID invalidTypeId) :
+        std::runtime_error("Node Factory not found"), _invalidTypeId(invalidTypeId)
+    {}
+};
+
 class ATSceneGraph final
 {
+    using SceneNodePtr = std::unique_ptr<ATSceneNode>;
+
     // TODO: protect with mutex? When multiple threads come into play I will do thread safe check
     // oon various data structures. Too soon for that right now...
     static std::unordered_map<NodeTypeID, std::unique_ptr<ISceneNodeFactory>> _factories;
     uint64_t _sceneHash = 0;
     NodeID _nextID = 0;
-    // TODO: change to straight std::vector. Better performance but just moving on. Will do.
-    std::unordered_map<NodeID, std::unique_ptr<ATSceneNode>> _nodes;
+    // node ids correspond to the index of the vector. Index 0 is NEVER used and should always be nullptr.
+    // This is because node with ID 0 represents invalid node.
+    std::vector<SceneNodePtr> _nodes;
 
 private:
-    ATSceneGraph()
-    {
-        std::random_device rd;
-        std::mt19937_64 gen(rd());
-        std::uniform_int_distribution<uint64_t> dis;
-        _sceneHash = dis(gen);
-    }
+    // dependency injection for node factories instead? Could be cleaner than registerNodeType static.
+    ATSceneGraph();
     ~ATSceneGraph();
 
-    NodeID nextNodeId();
-    friend Observer<ATSceneNode> getSceneNode(const ATAttributeHandle& ah);
+    friend Observer<ATSceneNode> getSceneNode(ATAttributeHandle ah);
+
+    [[nodiscard]] bool isValidNodeID(const NodeID nodeId) const
+    {
+        if (nodeId == 0 or nodeId >= _nodes.size())
+            return false;
+        return _nodes[nodeId] != nullptr;
+    }
+    void evaluateGraph(ATAttributeHandle attrHandle);
 
 public:
-    NodeID createNode(NodeTypeID typeId, std::string name);
+    NodeID createNode(NodeTypeID typeId, const std::string& name);
     bool deleteNode(NodeID nodeId);
     [[nodiscard]] AttrHandleArray getNodeOutputHandles(NodeID nodeId) const;
     [[nodiscard]] AttrHandleArray getNodeInputHandles(NodeID nodeId) const;
-    [[nodiscard]] bool isValidAttrHandle(const ATAttributeHandle& attrHandle) const;
-    [[nodiscard]] bool isDirtyAttr(const ATAttributeHandle& attrHandle) const;
-    [[nodiscard]] std::expected<bool,std::string> isInputAttrPlugged(const ATAttributeHandle& attrHandle) const;
+    [[nodiscard]] bool isValidAttrHandle(ATAttributeHandle attrHandle) const;
+    [[nodiscard]] bool isDirtyAttr(ATAttributeHandle attrHandle) const;
+    [[nodiscard]] std::expected<bool,std::string> isInputAttrPlugged(ATAttributeHandle attrHandle) const;
 
-    // this causes evaluation of the graph; should check because this can fail
-    [[nodiscard]] AttributeData getData(const ATAttributeHandle& attrHandle) const;
+    /// This causes evaluation of the graph; should check AttributeData because this can fail
+    [[nodiscard]] std::expected<AttributeData,int> getData(ATAttributeHandle attrHandle);
 
-    [[nodiscard]] bool willFormCycle(const ATAttributeHandle& outputHandle, const ATAttributeHandle& inputHandle) const;
-    bool connect(const ATAttributeHandle& outputHandle, const ATAttributeHandle& inputHandle);
-    bool disconnect(const ATAttributeHandle& inputHandle);
+    [[nodiscard]] bool willFormCycle(ATAttributeHandle outputHandle, ATAttributeHandle inputHandle) const;
+    bool connect(ATAttributeHandle outputHandle, ATAttributeHandle inputHandle);
+    bool disconnect(ATAttributeHandle inputHandle);
 
     // TODO: create iterator. This will do for now...
     void forEachNodeType(NodeTypeID typeId, const std::function<void(ATSceneNode&)>& visitor) const;

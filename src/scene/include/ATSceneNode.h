@@ -52,44 +52,55 @@ public:
     [[nodiscard]] const std::string& getName() const;
     void setName(const std::string& newName);
 
-    [[nodiscard]] int32_t getAttributeDataCount(const ATAttributeHandle& ah) const;
-    [[nodiscard]] AttributeDataType getAttrDataType(const ATAttributeHandle& ah) const;
+    [[nodiscard]] int32_t getAttributeDataCount(ATAttributeHandle ah) const;
+    [[nodiscard]] AttributeDataType getAttrDataType(ATAttributeHandle ah) const;
     [[nodiscard]] int32_t getInputAttributeCount() const;
     [[nodiscard]] int32_t getOutputAttributeCount() const;
     [[nodiscard]] AttrHandleArray getInputAttrs() const;
     [[nodiscard]] AttrHandleArray getOutputAttrs() const;
     [[nodiscard]] AttrHandleArray getInputAttrs(AttributeDataType attrDataType) const;
     [[nodiscard]] AttrHandleArray getOutputAttrs(AttributeDataType attrDataType) const;
-    // First value in pair => is the attr handle valid for this scene node?
-    // second value => was it dirty?
-    [[nodiscard]] bool isDirty(const ATAttributeHandle& ah) const;
-    [[nodiscard]] bool isValidAttrHandle(const ATAttributeHandle& ah) const;
+    [[nodiscard]] AttrHandleArray getDirtyInputAttrs() const;
+    // this queries if a specific attribute is dirty.
+    [[nodiscard]] bool isDirty(ATAttributeHandle ah) const;
+    [[nodiscard]] bool isValidAttrHandle(ATAttributeHandle ah) const;
+
     /// NOTE: Will return false if ah points to output handle and return false if input handle not plugged
-    [[nodiscard]] bool isPlugged(const ATAttributeHandle& ah) const;
-    [[nodiscard]] bool setUnpluggedInputAttrData(const ATAttributeHandle& ah, const AttributeData& attrData);
+    [[nodiscard]] bool isPlugged(ATAttributeHandle ah) const;
+    [[nodiscard]] bool setUnpluggedInputAttrData(ATAttributeHandle ah, AttributeData attrData);
 
 protected:
-    [[nodiscard]] const ATAttribute& getAttributeRef(const ATAttributeHandle& ah) const;
-    [[nodiscard]] const ATAttribute& getAttributeRefUnchecked(const ATAttributeHandle& ah) const;
+    [[nodiscard]] ATAttribute& getAttributeRef(ATAttributeHandle ah) const;
+    [[nodiscard]] ATAttribute& getAttributeRefUnchecked(ATAttributeHandle ah) const;
+    // DOES NOT cause re-evaluation of graph. the attribute must be clean for this call to work...
+    [[nodiscard]] AttributeData getAttributeData(ATAttributeHandle ah) const;
+
     /// where each node type implements node specific logic.
     /// This is called by the Scene Graph when graph evaluation occurs.
     /// i.e. when program entity calls getData on attribute handle.
-    virtual void compute(const ATAttributeHandle& ah) = 0;
+    virtual void compute(ATAttributeHandle ah) = 0;
+
+    bool plugAttribute(ATAttributeHandle thisNodeAttribute, ATAttributeHandle otherNodeAttribute);
+    bool unplugAttribute(ATAttributeHandle ah);
+    void markInputDirty(ATAttributeHandle ah);
     void markOutputsDirty();
-    void markInputDirty(const ATAttributeHandle& ah);
+    void markInputClean(ATAttributeHandle ah);
+    void markOutputClean(ATAttributeHandle ah);
+
     /// ALL nodes should register their attributes in the constructor body AND ONLY constructor body.
     ATAttributeHandle registerInputAttribute(AttributePtr newAttribute);
     ATAttributeHandle registerOutputAttribute(AttributePtr newAttribute);
 
 private:
     [[nodiscard]] ATAttributeHandle convertToHandle(AttributeDirection dataFlow, uint16_t index) const;
+    [[nodiscard]] ATAttributeHandle getUpstreamHandle(ATAttributeHandle inputAttribute) const;
 };
 
 class ISceneNodeFactory
 {
 public:
     // TODO: make ability to pass through args via std::forward...
-    virtual std::unique_ptr<ATSceneNode> createSceneNode() = 0;
+    virtual std::unique_ptr<ATSceneNode> createSceneNode(NodeID newNodeID, const std::string_view& name) = 0;
     virtual ~ISceneNodeFactory() = default;
     [[nodiscard]] virtual NodeTypeID getNodeTypeID() const = 0;
 };

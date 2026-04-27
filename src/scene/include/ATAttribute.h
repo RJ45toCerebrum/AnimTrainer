@@ -146,9 +146,9 @@ class ATAttributeHandle final
     friend class ATSceneNode;
 
     /// TODO: probably should have a generation hash to ensure this handle is valid for current scene graph (aka scene reload)
-    const NodeID _nodeID;
-    const uint16_t _index;
-    const AttributeDirection _dataFlowDir;
+    NodeID _nodeID;
+    uint16_t _index;
+    AttributeDirection _dataFlowDir;
 
 private:
     // ONLY the scene node should create attribute handles because its only entity that has sufficient information to create it.
@@ -162,6 +162,7 @@ public:
         _nodeID(ATScene::kInvalidNodeID), _index(0), _dataFlowDir()
     {}
     ATAttributeHandle(const ATAttributeHandle& handle) = default;
+    ATAttributeHandle& operator=(const ATAttributeHandle& handle) = default;
     bool operator==(const ATAttributeHandle& handle) const
     {
         return _nodeID == handle._nodeID and _index == handle._index and _dataFlowDir == handle._dataFlowDir;
@@ -173,6 +174,7 @@ public:
 
     [[nodiscard]] bool isValid() const;
     [[nodiscard]] bool isDirty() const;
+    [[nodiscard]] bool areCompatible(ATAttributeHandle otherHandle) const;
     [[nodiscard]] uint32_t getElementCount() const;
     [[nodiscard]] AttributeDirection direction() const;
     [[nodiscard]] AttributeDataType getDataType() const;
@@ -180,7 +182,7 @@ public:
     [[nodiscard]] std::string toString() const;
 
 
-    [[nodiscard]] AttributeData getData() const;
+    [[nodiscard]] AttributeData getData();
     /// It's an error to call this on attribute that has an input already because attr data is set by the graph...
     /// Hence: `Unplugged Input Attr`
     [[nodiscard]] bool setUnpluggedInputAttrData(const AttributeData& inData) const;
@@ -190,14 +192,14 @@ class InvalidAttrHandle final : public std::runtime_error
 {
     const ATAttributeHandle _handle;
 public:
-    explicit InvalidAttrHandle(const ATAttributeHandle& handle) :
+    explicit InvalidAttrHandle(const ATAttributeHandle handle) :
         std::runtime_error(formatMessage(handle)), _handle(handle)
     {}
     [[nodiscard]] std::string getHandleString() const
     {
         return _handle.toString();
     }
-    static std::string formatMessage(const ATAttributeHandle& handle)
+    static std::string formatMessage(const ATAttributeHandle handle)
     {
         return "Invalid Attribute Handle: " + handle.toString() + "\n" +
                "Most common reason is node was destroyed (explicitly or implicitly (via scene reload)).\n";
@@ -251,6 +253,11 @@ public:
     [[nodiscard]] bool isArray() const;
 
 protected:
+    // NOTE: the plug methods do not check if a cycle will be formed. This should be checked by graph
+    bool plugIncoming(ATAttributeHandle outputAttr);
+    bool plugOutgoing(ATAttributeHandle inputAttr);
+    bool unplug(ATAttributeHandle ah);
+
     [[nodiscard]] virtual int32_t getDataCount() const = 0;
     [[nodiscard]] virtual AttributeData getRawData() const = 0;
     virtual bool setData(const AttributeData& attrData) = 0;

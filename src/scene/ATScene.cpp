@@ -1,8 +1,8 @@
 // Created by Tyler on 4/21/2026.
 #include "ATSceneGraph.h"
 
-START_NAMESPACE(ATScene)
 
+START_NAMESPACE(ATScene)
 
 std::optional<std::reference_wrapper<ATSceneGraph>> getSceneGraph()
 {
@@ -17,21 +17,19 @@ std::unique_ptr<ATSceneGraph> createATSceneGraph()
 /// This is used as a bridge between AttributeHandle and Node containing attribute.
 /// This avoids having to create another function in Scene graph for every method we want to call
 /// on the scene node. We do not want this callable outside.
-Observer<ATSceneNode> getSceneNode(const ATAttributeHandle& ah)
+Observer<ATSceneNode> getSceneNode(const ATAttributeHandle ah)
 {
     const auto sgRef = getSceneGraph();
     if (not sgRef.has_value())
         return nullptr;
 
     const ATSceneGraph& sg = sgRef->get();
-    // TODO: there should be some way to detect if the handle was used in a previous scene
-    // For now I just skip this...
+    // TODO: there should be some way to detect if the handle was used in a previous scene. For now I just skip that...
     const NodeID nodeID = ah.getNodeID();
-    const auto itr = sg._nodes.find(nodeID);
-    if (itr == sg._nodes.end())
+    if (not sg.isValidNodeID(nodeID))
         throw InvalidAttrHandle(ah);
 
-    return itr->second.get();
+    return sg._nodes[nodeID].get();
 }
 
 
@@ -51,6 +49,11 @@ bool ATAttributeHandle::isDirty() const
     assert(sceneNode != nullptr);
     assert(sceneNode->isValidAttrHandle(*this));
     return sceneNode->isDirty(*this);
+}
+
+bool ATAttributeHandle::areCompatible(const ATAttributeHandle otherHandle) const
+{
+    return getDataType() == otherHandle.getDataType();
 }
 
 uint32_t ATAttributeHandle::getElementCount() const
@@ -85,13 +88,13 @@ std::string ATAttributeHandle::toString() const
         std::to_string(_nodeID), std::to_string(_index), attributeDirToStr(_dataFlowDir));
 }
 
-AttributeData ATAttributeHandle::getData() const
+AttributeData ATAttributeHandle::getData()
 {
     const auto sgRef = getSceneGraph();
     if (not sgRef.has_value())
         return {nullptr, 0, AttributeDataType::Invalid};
 
-    const ATSceneGraph& sceneGraph = sgRef.value();
+    ATSceneGraph& sceneGraph = sgRef.value();
     return sceneGraph.getData(*this);
 }
 
@@ -109,6 +112,8 @@ bool ATAttributeHandle::setUnpluggedInputAttrData(const AttributeData& inData) c
     return sceneNode->setUnpluggedInputAttrData(*this, inData);
 }
 #pragma endregion
+
+
 
 
 #pragma region ATTRIBUTE
@@ -160,8 +165,6 @@ void ATAttribute::markDirty()
 
 void ATAttribute::markClean()
 {
-    // Should we check if upstream source is dirty?
-    // might be too heavy. Maybe do all that checking in the Scene graph layer to keep this fast..
     _dirty = false;
 }
 
@@ -172,21 +175,103 @@ std::vector<ATAttributeHandle> ATAttribute::getSources() const
 
     return std::get<kOutputAttrVariantIndex>(_sources);
 }
+
+bool ATAttribute::plugIncoming(const ATAttributeHandle outputAttr)
+{
+    // Here we just straight set it without checking for cycles.
+    // This is the job of the scene graph to check for cycles before this is called...
+    if(not isInputAttribute())
+    {
+        std::cerr << "[ATAttribute::plugIncoming] "
+                     "call to plugIncoming on attribute that is output attribute" << std::endl;
+        return false;
+    }
+    // we do not allow implicit unplug. IF feel like that would produce lots of bugs...
+    if(isPlugged())
+    {
+        std::cerr << "[ATAttribute::plugIncoming] "
+                     "call to plugIncoming on input attribute but the attribute is already plugged" << std::endl;
+        return false;
+    }
+    if (not outputAttr.isValid())
+    {
+        std::cerr << "[ATAttribute::plugIncoming] "
+             "Can not plug with invalid output attribute..." << std::endl;
+        return false;
+    }
+    // need to check if the attributes are compatible (aka same data types)
+    if (_type != outputAttr.getDataType())
+    {
+        std::cerr << "[ATAttribute::plugIncoming] "
+             "call to plugIncoming on input attribute but the data types are not compatible" << std::endl;
+        return false;
+    }
+    _sources.emplace<kInputAttrVariantIndex>(outputAttr);
+    return true;
+}
+
+bool ATAttribute::plugOutgoing(const ATAttributeHandle inputAttr)
+{
+    if (not isOutputAttribute())
+    {
+        std::cerr << "[ATAttribute::plugOutgoing] "
+             "call to plugOutgoing on attribute that is an input attribute" << std::endl;
+        return false;
+    }
+    if (not inputAttr.isValid())
+    {
+        std::cerr << "[ATAttribute::plugOutgoing] "
+            "Can not plug with invalid input attribute..." << std::endl;
+        return false;
+    }
+    // need to check if the attributes are compatible (aka same data types)
+    if (_type != inputAttr.getDataType())
+    {
+        std::cerr << "[ATAttribute::plugOutgoing] "
+             "call to plugOutgoing on input attribute but the data types are not compatible" << std::endl;
+        return false;
+    }
+
+    auto& outputSources = std::get<kOutputAttrVariantIndex>(_sources);
+    outputSources.push_back(inputAttr);
+    return true;
+}
+
+bool ATAttribute::unplug(const ATAttributeHandle ah)
+{
+    if (isInputAttribute())
+    {
+        const ATAttributeHandle& inputSource = std::get<kInputAttrVariantIndex>(_sources);
+        if (inputSource == ah)
+        {
+            _sources.emplace<kInputAttrVariantIndex>(ATAttributeHandle());
+            return true;
+        }
+        return false;
+    }
+
+    auto& outputSources = std::get<kOutputAttrVariantIndex>(_sources);
+    const auto fitr = std::ranges::find(outputSources, ah);
+    outputSources.erase(fitr);
+    return true;
+}
 #pragma endregion
 
 
+
+
 #pragma region SCENE_NODE
-bool ATSceneNode::isValidAttrHandle(const ATAttributeHandle& ah) const
+bool ATSceneNode::isValidAttrHandle(const ATAttributeHandle ah) const
 {
-    if (ah._nodeID != _nodeID)
+    if (ah._nodeID != _nodeID or ah._nodeID == kInvalidNodeID)
         return false;
 
-    if (ah._dataFlowDir != AttributeDirection::Input)
+    if (ah._dataFlowDir == AttributeDirection::Input)
     {
-        if (ah._index < 0 or ah._index >= _inputAttributes.size())
+        if (ah._index >= _inputAttributes.size())
             return false;
     }
-    else if (ah._index < 0 or ah._index >= _outputAttributes.size())
+    else if (ah._index >= _outputAttributes.size())
     {
         return false;
     }
@@ -198,7 +283,7 @@ ATAttributeHandle ATSceneNode::convertToHandle(const AttributeDirection dataFlow
     return {_nodeID, index, dataFlow};
 }
 
-const ATAttribute& ATSceneNode::getAttributeRef(const ATAttributeHandle& ah) const
+ATAttribute& ATSceneNode::getAttributeRef(const ATAttributeHandle ah) const
 {
     if (not isValidAttrHandle(ah))
         throw InvalidAttrHandle(ah);
@@ -209,7 +294,7 @@ const ATAttribute& ATSceneNode::getAttributeRef(const ATAttributeHandle& ah) con
     return *_outputAttributes[ah._index];
 }
 
-const ATAttribute& ATSceneNode::getAttributeRefUnchecked(const ATAttributeHandle& ah) const
+ATAttribute& ATSceneNode::getAttributeRefUnchecked(const ATAttributeHandle ah) const
 {
     if (ah._dataFlowDir == AttributeDirection::Input)
         return *_inputAttributes[ah._index];
@@ -231,7 +316,7 @@ void ATSceneNode::setName(const std::string& newName)
     _name = newName;
 }
 
-int32_t ATSceneNode::getAttributeDataCount(const ATAttributeHandle& ah) const
+int32_t ATSceneNode::getAttributeDataCount(const ATAttributeHandle ah) const
 {
     if (not isValidAttrHandle(ah))
         return -1;
@@ -245,7 +330,7 @@ int32_t ATSceneNode::getAttributeDataCount(const ATAttributeHandle& ah) const
     return atrPtr->getDataCount();
 }
 
-AttributeDataType ATSceneNode::getAttrDataType(const ATAttributeHandle& ah) const
+AttributeDataType ATSceneNode::getAttrDataType(const ATAttributeHandle ah) const
 {
     if (not isValidAttrHandle(ah))
         throw InvalidAttrHandle(ah);
@@ -311,7 +396,19 @@ AttrHandleArray ATSceneNode::getOutputAttrs(const AttributeDataType attrDataType
     return outputAttrs;
 }
 
-bool ATSceneNode::isDirty(const ATAttributeHandle& ah) const
+AttrHandleArray ATSceneNode::getDirtyInputAttrs() const
+{
+    AttrHandleArray inputAttrs;
+    for (int i = 0; i < _inputAttributes.size(); i++)
+    {
+        const ATAttribute& attr = *_inputAttributes[i];
+        if (attr.isDirty())
+            inputAttrs.push_back(convertToHandle(AttributeDirection::Input, i));
+    }
+    return inputAttrs;
+}
+
+bool ATSceneNode::isDirty(const ATAttributeHandle ah) const
 {
     if (not isValidAttrHandle(ah))
         throw InvalidAttrHandle(ah);
@@ -325,13 +422,13 @@ bool ATSceneNode::isDirty(const ATAttributeHandle& ah) const
     return attrPtr->isDirty();
 }
 
-bool ATSceneNode::isPlugged(const ATAttributeHandle& ah) const
+bool ATSceneNode::isPlugged(const ATAttributeHandle ah) const
 {
     const auto& ptr = getAttributeRef(ah);
     return ptr.isPlugged();
 }
 
-bool ATSceneNode::setUnpluggedInputAttrData(const ATAttributeHandle& ah, const AttributeData& attrData)
+bool ATSceneNode::setUnpluggedInputAttrData(const ATAttributeHandle ah, const AttributeData attrData)
 {
     if (not isValidAttrHandle(ah))
         throw InvalidAttrHandle(ah);
@@ -350,13 +447,79 @@ bool ATSceneNode::setUnpluggedInputAttrData(const ATAttributeHandle& ah, const A
     return true;
 }
 
-void ATSceneNode::markInputDirty(const ATAttributeHandle& ah)
+// NOTE: this method does not check for cycle. Graph is responsible for checking that before calling this.
+// Also note that this method is one directional. When graph connects attr's it needs to call symetrically.
+bool ATSceneNode::plugAttribute(const ATAttributeHandle thisNodeAttribute, const ATAttributeHandle otherNodeAttribute)
+{
+    ATAttribute& attrRef = getAttributeRef(thisNodeAttribute);
+    if (attrRef.isInputAttribute())
+        return attrRef.plugIncoming(otherNodeAttribute);
+
+    return attrRef.plugOutgoing(otherNodeAttribute);
+}
+
+bool ATSceneNode::unplugAttribute(const ATAttributeHandle ah)
+{
+    ATAttribute& attrRef = getAttributeRef(ah);
+    if (not attrRef.isPlugged())
+    {
+        std::cout << "[ATSceneNode::unplugAttribute] attribute not plugged" << std::endl;
+        return false;
+    }
+    std::vector<ATAttributeHandle> sources = attrRef.getSources();
+    if (attrRef.isInputAttribute())
+    {
+        // IF ah refers to input attribute on this node THEN there can only be 1 source.
+        assert(sources.size() == 1);
+        return attrRef.unplug(sources[0]);
+    }
+    bool success = true;
+    for (const auto source : sources)
+    {
+        if (not attrRef.unplug(source))
+        {
+            std::cerr << "[ATSceneNode::unplugAttribute] Failed to unplug" << std::endl;
+            success = false;
+        }
+    }
+    return success;
+}
+
+void ATSceneNode::markInputDirty(const ATAttributeHandle ah)
 {
     auto& attrRef = *_inputAttributes.at(ah._index);
     attrRef.markDirty();
-    // For now, to keep things simple, marking any input dirty automatically marks outputs
-    // dirty as well, which triggers all downstream attributes to become dirty...
+    // For now, to keep things simple, marking any input dirty automatically marks all outputs dirty
+    // which triggers all downstream attributes to become dirty
     markOutputsDirty();
+}
+
+void ATSceneNode::markInputClean(const ATAttributeHandle ah)
+{
+    assert(ah.direction() == AttributeDirection::Input);
+    if (not isValidAttrHandle(ah))
+        throw InvalidAttrHandle(ah);
+
+    ATAttribute& attr = *_inputAttributes[ah._index];
+    attr.markClean();
+}
+
+void ATSceneNode::markOutputClean(const ATAttributeHandle ah)
+{
+    // similar to markOutputsDirty, we need to mark downstream clean.
+    // unlike markOutputsDirty it does not recurse because compute must be called before downstream clean.
+    assert(ah.direction() == AttributeDirection::Output);
+    if (not isValidAttrHandle(ah))
+        throw InvalidAttrHandle(ah);
+
+    ATAttribute& attr = *_outputAttributes[ah._index];
+    attr.markClean();
+    for (const ATAttributeHandle source : attr.getSources())
+    {
+        Observer<ATSceneNode> node = getSceneNode(source);
+        assert(node != nullptr);
+        node->markInputClean(source);
+    }
 }
 
 // outputs are responsible for marking input attr dirty.
@@ -369,6 +532,9 @@ void ATSceneNode::markOutputsDirty()
     // We do not compute entire graph every frame. We only compute the dirty nodes AND only if data requested.
     for (auto& outputAttrPtr : _outputAttributes)
     {
+        // do not recurse if we already marked this dirty as all downstream is already dirty
+        if (outputAttrPtr->isDirty())
+            continue;
         outputAttrPtr->markDirty();
         for (const auto& source : outputAttrPtr->getSources())
         {
@@ -393,6 +559,161 @@ ATAttributeHandle ATSceneNode::registerOutputAttribute(AttributePtr newAttribute
     const uint16_t attrID = _outputAttributes.size() - 1;
     return {_nodeID, attrID, AttributeDirection::Output};
 }
+
+AttributeData ATSceneNode::getAttributeData(const ATAttributeHandle ah) const
+{
+    if (isDirty(ah))
+        throw std::runtime_error("[ATSceneNode::getAttributeData] Should only be called after"
+                                 " scene graph has fully recomputed upstream dependents.");
+
+    const ATAttribute& attr = getAttributeRefUnchecked(ah);
+    return attr.getRawData();
+}
+
+ATAttributeHandle ATSceneNode::getUpstreamHandle(const ATAttributeHandle inputAttribute) const
+{
+    const ATAttribute& attrRef = getAttributeRef(inputAttribute);
+    assert(attrRef.isInputAttribute());
+    const auto sources = attrRef.getSources();
+    return sources.at(0);
+}
+#pragma endregion
+
+
+
+
+#pragma region SCENE_GRAPH
+ATSceneGraph::ATSceneGraph()
+{
+    std::random_device rd;
+    std::mt19937_64 gen(rd());
+    std::uniform_int_distribution<uint64_t> dis;
+    _sceneHash = dis(gen);
+
+    // TODO: polymorphic memory pool
+    _nodes.reserve(50);
+}
+
+ATSceneGraph::~ATSceneGraph()
+{
+    _nodes.clear();
+}
+
+NodeID ATSceneGraph::createNode(const NodeTypeID typeId, const std::string& name)
+{
+    const auto fItr = _factories.find(typeId);
+    if (fItr == _factories.end())
+        throw NodeFactoryNotFound(typeId);
+
+    ISceneNodeFactory& factory = *fItr->second;
+    const NodeID newNodeID = _nodes.size();
+    SceneNodePtr newNode = factory.createSceneNode(newNodeID, name);
+    assert(newNode != nullptr);
+
+    _nodes.push_back(std::move(newNode));
+    return newNodeID;
+}
+
+bool ATSceneGraph::deleteNode(const NodeID nodeId)
+{
+    if (not isValidNodeID(nodeId))
+        throw std::runtime_error("[ATSceneGraph::deleteNode] Invalid node ID");
+
+    throw std::runtime_error("[ATSceneGraph::deleteNode] NO IMPL");
+}
+
+AttrHandleArray ATSceneGraph::getNodeOutputHandles(const NodeID nodeId) const
+{
+    if (not isValidNodeID(nodeId))
+        throw std::runtime_error("[ATSceneGraph::getNodeOutputHandles] Invalid node ID");
+
+    const ATSceneNode& nodeRef = *_nodes[nodeId];
+    return nodeRef.getOutputAttrs();
+}
+
+AttrHandleArray ATSceneGraph::getNodeInputHandles(const NodeID nodeId) const
+{
+    if (not isValidNodeID(nodeId))
+        throw std::runtime_error("[ATSceneGraph::getNodeInputHandles] Invalid node ID");
+
+    const ATSceneNode& nodeRef = *_nodes[nodeId];
+    return nodeRef.getOutputAttrs();
+}
+
+bool ATSceneGraph::isValidAttrHandle(const ATAttributeHandle attrHandle) const
+{
+    if (not isValidNodeID(attrHandle.getNodeID()))
+        return false;
+
+    const ATSceneNode& node = *_nodes[attrHandle.getNodeID()];
+    return node.isValidAttrHandle(attrHandle);
+}
+
+bool ATSceneGraph::isDirtyAttr(const ATAttributeHandle attrHandle) const
+{
+    if (not isValidNodeID(attrHandle.getNodeID()))
+        throw std::runtime_error("[ATSceneGraph::isDirtyAttr] Node ID is out of range");
+
+    const ATSceneNode& node = *_nodes[attrHandle.getNodeID()];
+    return node.isDirty(attrHandle);
+}
+
+std::expected<bool,std::string> ATSceneGraph::isInputAttrPlugged(const ATAttributeHandle attrHandle) const
+{
+    const NodeID nodeID = attrHandle.getNodeID();
+    if (not isValidNodeID(nodeID))
+        return std::unexpected("Invalid input attribute. Was the node destroyed?");
+
+    const ATSceneNode& node = *_nodes[nodeID];
+    return node.isPlugged(attrHandle);
+}
+
+std::expected<AttributeData,int> ATSceneGraph::getData(const ATAttributeHandle attrHandle)
+{
+    const NodeID nodeID = attrHandle.getNodeID();
+    // TODO: make proper return enum.
+    if (not isValidNodeID(nodeID))
+        return std::unexpected(1);
+    if (attrHandle.direction() == AttributeDirection::Input)
+        return std::unexpected(2);
+
+    evaluateGraph(attrHandle);
+
+    ATSceneNode& node = *_nodes[nodeID];
+    return node.getAttributeData(attrHandle);
+}
+
+void ATSceneGraph::evaluateGraph(const ATAttributeHandle attrHandle)
+{
+    const NodeID nodeID = attrHandle.getNodeID();
+    if (not isValidNodeID(nodeID) or attrHandle.direction() == AttributeDirection::Input)
+        return;
+
+    ATSceneNode& node = *_nodes[nodeID];
+    // are inputs already clean? no work to do on graph
+    if (not node.isDirty(attrHandle))
+        return;
+
+    // in order to compute this node, we need to go upstream
+    const std::vector<ATAttributeHandle> dirtyHandles = node.getDirtyInputAttrs();
+    for (const auto dirtyHandle : dirtyHandles)
+    {
+        if (not node.isPlugged(dirtyHandle))
+        {
+            // for non-plugged input attributes, we just mark clean.
+            node.markInputClean(dirtyHandle);
+            continue;
+        }
+        // get the upstream handle
+        const ATAttributeHandle upstreamHandle = node.getUpstreamHandle(dirtyHandle);
+        evaluateGraph(upstreamHandle);
+    }
+    node.compute(attrHandle);
+}
+
+//bool ATSceneGraph::willFormCycle(ATAttributeHandle outputHandle, ATAttributeHandle inputHandle) const;
+//bool ATSceneGraph::connect(ATAttributeHandle outputHandle, ATAttributeHandle inputHandle);
+//bool ATSceneGraph::disconnect(ATAttributeHandle inputHandle);
 #pragma endregion
 
 END_NAMESPACE
