@@ -4,14 +4,41 @@
 
 START_NAMESPACE(ATScene)
 
-std::optional<std::reference_wrapper<ATSceneGraph>> getSceneGraph()
+namespace
 {
-    throw std::exception("NO IMPL");
+    std::unique_ptr<ATSceneGraph> sceneGraph = nullptr;
 }
 
-std::unique_ptr<ATSceneGraph> createATSceneGraph()
+std::optional<std::reference_wrapper<ATSceneGraph>> getSceneGraph()
 {
-    throw std::exception("NO IMPL");
+    std::optional<std::reference_wrapper<ATSceneGraph>> sg;
+    if (sceneGraph == nullptr)
+    {
+        std::cerr << "[ERROR] Attempting to get scene graph ref when scene graph is null" << std::endl;
+        return sg;
+    }
+    sg.emplace(*sceneGraph);
+    return sg;
+}
+
+void createATSceneGraph()
+{
+    if (sceneGraph != nullptr)
+    {
+        std::cerr << "[ERROR] Attempting to create a new ATSceneGraph object when one already exists" << std::endl;
+        return;
+    }
+    sceneGraph = std::make_unique<ATSceneGraph>();
+}
+
+void destroyATSceneGraph()
+{
+    if (sceneGraph == nullptr)
+    {
+        std::cerr << "[ERROR] Attempting to destroy scene graph when one does not exist" << std::endl;
+        return;
+    }
+    sceneGraph.reset();
 }
 
 /// This is used as a bridge between AttributeHandle and Node containing attribute.
@@ -95,7 +122,8 @@ AttributeData ATAttributeHandle::getData()
         return {nullptr, 0, AttributeDataType::Invalid};
 
     ATSceneGraph& sceneGraph = sgRef.value();
-    return sceneGraph.getData(*this);
+    const auto result = sceneGraph.getData(*this);
+    return result.value();
 }
 
 /// It's an error to call this on attribute that has an input already because attr data is set by the graph...
@@ -679,7 +707,7 @@ std::expected<AttributeData,int> ATSceneGraph::getData(const ATAttributeHandle a
 
     evaluateGraph(attrHandle);
 
-    ATSceneNode& node = *_nodes[nodeID];
+    const ATSceneNode& node = *_nodes[nodeID];
     return node.getAttributeData(attrHandle);
 }
 
@@ -711,9 +739,45 @@ void ATSceneGraph::evaluateGraph(const ATAttributeHandle attrHandle)
     node.compute(attrHandle);
 }
 
+// TODO: implement. We do not check for cycles in initial implementation of scene graph impl.
+// be careful with forming cycles as it will end in inf recursion...
 //bool ATSceneGraph::willFormCycle(ATAttributeHandle outputHandle, ATAttributeHandle inputHandle) const;
-//bool ATSceneGraph::connect(ATAttributeHandle outputHandle, ATAttributeHandle inputHandle);
-//bool ATSceneGraph::disconnect(ATAttributeHandle inputHandle);
+
+bool ATSceneGraph::connect(const ATAttributeHandle outputHandle, const ATAttributeHandle inputHandle)
+{
+    if (not outputHandle.isValid())
+    {
+        std::cerr << "[ATSceneGraph::connect] Invalid output attribute" << std::endl;
+        return false;
+    }
+    if (not inputHandle.isValid())
+    {
+        std::cerr << "[ATSceneGraph::connect] Invalid input attribute" << std::endl;
+        return false;
+    }
+
+    // TODO: we should check for cycles before connecting. But for now we move on...
+
+    Observer<ATSceneNode> outgoingNode = getSceneNode(outputHandle);
+    if (not outgoingNode->plugAttribute(outputHandle, inputHandle))
+    {
+        std::cerr << "[ATSceneGraph::connect][outgoingNode->plugAttribute] Failed to plug attribute" << std::endl;
+        return false;
+    }
+    Observer<ATSceneNode> incomingNode = getSceneNode(inputHandle);
+    if (not incomingNode->plugAttribute(inputHandle, outputHandle))
+    {
+        std::cerr << "[ATSceneGraph::connect][incomingNode->plugAttribute] Failed to plug attribute" << std::endl;
+        return false;
+    }
+    return true;
+}
+
+bool ATSceneGraph::disconnect(ATAttributeHandle inputHandle)
+{
+    throw std::runtime_error("[ATSceneGraph::disconnect] NO IMPL");
+}
 #pragma endregion
+
 
 END_NAMESPACE

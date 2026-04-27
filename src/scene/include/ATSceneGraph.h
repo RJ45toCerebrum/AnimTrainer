@@ -32,10 +32,6 @@ class ATSceneGraph final
     std::vector<SceneNodePtr> _nodes;
 
 private:
-    // dependency injection for node factories instead? Could be cleaner than registerNodeType static.
-    ATSceneGraph();
-    ~ATSceneGraph();
-
     friend Observer<ATSceneNode> getSceneNode(ATAttributeHandle ah);
 
     [[nodiscard]] bool isValidNodeID(const NodeID nodeId) const
@@ -47,6 +43,10 @@ private:
     void evaluateGraph(ATAttributeHandle attrHandle);
 
 public:
+    // dependency injection for node factories instead? Could be cleaner than registerNodeType static.
+    ATSceneGraph();
+    ~ATSceneGraph();
+
     NodeID createNode(NodeTypeID typeId, const std::string& name);
     bool deleteNode(NodeID nodeId);
     [[nodiscard]] AttrHandleArray getNodeOutputHandles(NodeID nodeId) const;
@@ -69,7 +69,8 @@ public:
     static void registerNodeType(NodeTypeID typeId, std::unique_ptr<ISceneNodeFactory> factoryPtr);
 };
 
-std::unique_ptr<ATSceneGraph> createATSceneGraph();
+void createATSceneGraph();
+void destroyATSceneGraph();
 std::optional<std::reference_wrapper<ATSceneGraph>> getSceneGraph();
 
 END_NAMESPACE
