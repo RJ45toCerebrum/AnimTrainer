@@ -14,6 +14,8 @@
 
 #include "glm/gtx/string_cast.hpp"
 
+#include <ATSceneGraph.h>
+#include <Nodes/ATDebugSphere.h>
 
 namespace
 {
@@ -29,6 +31,12 @@ using glm::vec3;
 using glm::quat;
 using glm::mat4x4;
 using ATMath::toRLVec;
+
+using ATScene::ATSceneGraph;
+using NID = ATScene::NodeID;
+using ATScene::AttrHandleArray;
+using ATScene::ATAttributeHandle;
+using ATScene::AttributeDataType;
 
 
 void ATDrawLine(const vec3& start, const vec3& end, const Color& color)
@@ -53,7 +61,7 @@ class TransformGizmo
     // will delete at some point
     // a Transform gizmo that is "locked" skips Update
     // but can still draw. This is useful for setting a reference point in scene,
-    // but do not want to incur the heaviness of the update methods..
+    // but do not want to incur the heaviness of the update methods.
     bool _locked = false;
     ActiveGizmoTool _activeGizmoTool = ActiveGizmoTool::Translation;
     ATMath::Axis _selectedAxis = ATMath::Axis::None;
@@ -494,6 +502,26 @@ int main(int argc, char *argv[])
     std::unique_ptr<TransformGizmo> originGizmo = std::make_unique<TransformGizmo>();
     originGizmo->SetLocked(true);
 
+    // scene graph init
+    ATScene::createATSceneGraph();
+    ATNode::DebugSphereNodeFactory::registerNode();
+    auto sgRef = ATScene::getSceneGraph();
+    assert(sgRef.has_value());
+    ATSceneGraph& sceneGraph = sgRef.value();
+
+    // node creation
+    const NID debugSphereNodeID = sceneGraph.createNode(ATNode::ATDebugSphereNode::nodeTypeID, "My First Node");
+    const AttrHandleArray inputHandles = sceneGraph.getNodeInputHandles(debugSphereNodeID);
+    const AttrHandleArray outputHandles = sceneGraph.getNodeOutputHandles(debugSphereNodeID);
+
+    const auto posAttrItr = std::ranges::find_if(inputHandles,
+        [](const ATAttributeHandle attrHandle) -> bool
+    {
+        return attrHandle.getDataType() == AttributeDataType::Vec3;
+    });
+    ATAttributeHandle posAttr = *posAttrItr;
+    ATAttributeHandle outPosAttr = outputHandles[0];
+
     while (!WindowShouldClose())
     {
         cameraController.Update();
@@ -508,6 +536,9 @@ int main(int argc, char *argv[])
             drawEnvironment(originGizmo);
         }
     }
+
+
+    ATScene::destroyATSceneGraph();
 
     UnloadMaterial(gizmoMat);
     CloseWindow();

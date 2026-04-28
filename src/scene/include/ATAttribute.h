@@ -255,15 +255,16 @@ public:
     [[nodiscard]] AttributeDataType getDataType() const;
     [[nodiscard]] bool isArray() const;
 
+
+    [[nodiscard]] virtual int32_t getDataCount() const = 0;
+    [[nodiscard]] virtual AttributeData getRawData() const = 0;
+    virtual bool setData(const AttributeData& attrData) = 0;
+
 protected:
     // NOTE: the plug methods do not check if a cycle will be formed. This should be checked by graph
     bool plugIncoming(ATAttributeHandle outputAttr);
     bool plugOutgoing(ATAttributeHandle inputAttr);
     bool unplug(ATAttributeHandle ah);
-
-    [[nodiscard]] virtual int32_t getDataCount() const = 0;
-    [[nodiscard]] virtual AttributeData getRawData() const = 0;
-    virtual bool setData(const AttributeData& attrData) = 0;
 
 private:
     // this only sets the _dirty flag. SceneGraph is responsible for marking all downstream attributes...

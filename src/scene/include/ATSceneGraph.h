@@ -8,6 +8,7 @@
 #include <random>
 #include <expected>
 
+
 START_NAMESPACE(ATScene)
 
 class NodeFactoryNotFound : public std::runtime_error
@@ -22,10 +23,10 @@ public:
 class ATSceneGraph final
 {
     using SceneNodePtr = std::unique_ptr<ATSceneNode>;
-
     // TODO: protect with mutex? When multiple threads come into play I will do thread safe check
     // oon various data structures. Too soon for that right now...
     static std::unordered_map<NodeTypeID, std::unique_ptr<ISceneNodeFactory>> _factories;
+
     uint64_t _sceneHash = 0;
     NodeID _nextID = 0;
     // node ids correspond to the index of the vector. Index 0 is NEVER used and should always be nullptr.
@@ -45,6 +46,7 @@ private:
 
 public:
     // dependency injection for node factories instead? Could be cleaner than registerNodeType static.
+    // TODO: make constructor private
     ATSceneGraph();
     ~ATSceneGraph();
 

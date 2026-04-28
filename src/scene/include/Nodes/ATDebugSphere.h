@@ -1,9 +1,9 @@
 // Created by Tyler on 4/27/2026.
 #pragma once
 
-#include "ATSceneNode.h"
-#include "Attributes/ATVec3Attribute.h"
-#include "Attributes/ATFloatAttribute.h"
+#include <ATSceneNode.h>
+#include <Attributes/ATVec3Attribute.h>
+#include <Attributes/ATFloatAttribute.h>
 
 START_NAMESPACE(ATNode)
 
@@ -43,7 +43,7 @@ public:
         _outPositionHandle = registerOutputAttribute(std::move(outputPositionAttr));
     }
 
-    NodeTypeID getNodeTypeID() const override
+    [[nodiscard]] NodeTypeID getNodeTypeID() const override
     {
         return nodeTypeID;
     }
@@ -51,6 +51,7 @@ public:
 protected:
     void compute(const ATAttributeHandle ah) override
     {
+        // pull in the attribute data
         assert(ah == _outPositionHandle);
         const ATScene::AttributeData inPosition = getAttributeData(_inPositionHandle);
         const glm::vec3 pos = inPosition.getData<glm::vec3>();
@@ -58,8 +59,16 @@ protected:
         const ATScene::AttributeData inRadius = getAttributeData(_inRadiusHandle);
         const float radius = inRadius.getData<float>();
 
+        // do the computing
         const Vector3 p{pos.x, pos.y, pos.z};
         DrawSphere(p, radius, YELLOW);
+
+        // set the output attribute data.
+        ATScene::ATAttribute& outAttrRef = getAttributeRef(_outPositionHandle);
+        const ATScene::AttributeData attrData(&pos, 1, ATScene::AttributeDataType::Vec3);
+        outAttrRef.setData(attrData);
+
+        markOutputClean(_outPositionHandle);
     }
 };
 
@@ -73,9 +82,14 @@ public:
         std::unique_ptr<ATSceneNode> newNode = std::make_unique<ATDebugSphereNode>(newNodeID, name);
         return newNode;
     }
-    NodeTypeID getNodeTypeID() const override
+    [[nodiscard]] NodeTypeID getNodeTypeID() const override
     {
         return ATDebugSphereNode::nodeTypeID;
+    }
+    static void registerNode()
+    {
+        std::unique_ptr<ISceneNodeFactory> factoryPtr = std::make_unique<DebugSphereNodeFactory>();
+        ATScene::ATSceneGraph::registerNodeType(ATDebugSphereNode::nodeTypeID, std::move(factoryPtr));
     }
 };
 

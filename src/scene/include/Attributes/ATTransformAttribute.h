@@ -20,7 +20,6 @@ public:
         ATAttribute(ATScene::AttributeDataType::Transform, owner, isArray, direction)
     {}
 
-protected:
     [[nodiscard]] int32_t getDataCount() const override
     {
         const std::size_t elementCount = _transformData.size();

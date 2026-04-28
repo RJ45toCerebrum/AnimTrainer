@@ -8,6 +8,8 @@
 
 START_NAMESPACE(ATScene)
 
+std::unordered_map<NodeTypeID, std::unique_ptr<ISceneNodeFactory>> ATSceneGraph::_factories = {};
+
 namespace
 {
     std::unique_ptr<ATSceneGraph> sceneGraph = nullptr;
@@ -54,7 +56,7 @@ Observer<ATSceneNode> getSceneNode(const ATAttributeHandle ah)
     if (not sgRef.has_value())
         return nullptr;
 
-    const ATSceneGraph& sg = sgRef->get();
+    const ATSceneGraph& sg = sgRef.value();
     // TODO: there should be some way to detect if the handle was used in a previous scene. For now I just skip that...
     const NodeID nodeID = ah.getNodeID();
     if (not sg.isValidNodeID(nodeID))
@@ -104,7 +106,6 @@ AttributeDataType ATAttributeHandle::getDataType() const
 {
     const Observer<ATSceneNode> sceneNode = getSceneNode(*this);
     assert(sceneNode != nullptr);
-    assert(sceneNode->isValidAttrHandle(*this));
     return sceneNode->getAttrDataType(*this);
 }
 
@@ -125,8 +126,8 @@ AttributeData ATAttributeHandle::getData()
     if (not sgRef.has_value())
         return {nullptr, 0, AttributeDataType::Invalid};
 
-    ATSceneGraph& sceneGraph = sgRef.value();
-    const auto result = sceneGraph.getData(*this);
+    ATSceneGraph& sg = sgRef.value();
+    const auto result = sg.getData(*this);
     return result.value();
 }
 
@@ -624,6 +625,7 @@ ATSceneGraph::ATSceneGraph()
 
     // TODO: polymorphic memory pool
     _nodes.reserve(50);
+    _nodes.push_back(nullptr);
 }
 
 ATSceneGraph::~ATSceneGraph()
@@ -669,7 +671,7 @@ AttrHandleArray ATSceneGraph::getNodeInputHandles(const NodeID nodeId) const
         throw std::runtime_error("[ATSceneGraph::getNodeInputHandles] Invalid node ID");
 
     const ATSceneNode& nodeRef = *_nodes[nodeId];
-    return nodeRef.getOutputAttrs();
+    return nodeRef.getInputAttrs();
 }
 
 bool ATSceneGraph::isValidAttrHandle(const ATAttributeHandle attrHandle) const
