@@ -39,6 +39,13 @@ using ATScene::ATAttributeHandle;
 using ATScene::AttributeDataType;
 using ATScene::AttributeData;
 
+/* TODO:
+ * 1) Time Node + graph update:
+ * Some nodes need to have compute called regardless of whether an input changes (and some will have 0 input attributes)
+ * The Time node is one of those nodes. We want anything down stream of time node to always get evaluated.
+ * 2) Circle position node -> connect to Debug Sphere node
+ * 3) Mesh Render Node + Mesh Attribute;
+ */
 
 void ATDrawLine(const vec3& start, const vec3& end, const Color& color)
 {
@@ -538,15 +545,15 @@ int main(int argc, char *argv[])
             ATCamera::CameraRenderGuard cameraRenderGuard(cameraController);
             transformGizmo->Update(cameraController);
 
-            const bool shouldSetData = static_cast<int>(GetTime() / 3) % 2 == 0;
-            if (shouldSetData)
-            {
-                const float np = GetFrameTime() * 0.1f;
-                pos += vec3(np,np,np);
-                AttributeData posAttrData(&pos, 1, AttributeDataType::Vec3);
-                if (not posHandle.setUnpluggedInputAttrData(posAttrData))
-                    throw std::runtime_error("Error setting unpluggedInputAttrData");
-            }
+            //const bool shouldSetData = static_cast<int>(GetTime() / 3) % 2 == 0;
+            //if (shouldSetData)
+            //{
+            //    const float np = GetFrameTime() * 0.1f;
+            //    pos += vec3(np,np,np);
+            //    AttributeData posAttrData(&pos, 1, AttributeDataType::Vec3);
+            //    if (not posHandle.setUnpluggedInputAttrData(posAttrData))
+            //        throw std::runtime_error("Error setting unpluggedInputAttrData");
+            //}
 
             AttributeData outAttrData = outPosAttr.getData();
 

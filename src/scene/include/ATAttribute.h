@@ -184,7 +184,9 @@ public:
     [[nodiscard]] NodeID getNodeID() const;
     [[nodiscard]] std::string toString() const;
 
-
+    // TODO: make method that does not require requesting data in order for compute to be called.
+    void computeIfNeeded();
+    // Causes graph evaluation
     [[nodiscard]] AttributeData getData();
     /// It's an error to call this on attribute that has an input already because attr data is set by the graph...
     /// Hence: `Unplugged Input Attr`
