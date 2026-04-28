@@ -136,7 +136,7 @@ public:
     std::span<const T> getDataArray() const
     {
         assert(_rawData != nullptr);
-        assert(_elementCount > 1);
+        assert(_elementCount >= 1);
         if (_dataType != getEnumForType<T>())
             throw std::runtime_error("Template type T does not match internal dataType");
         const T* ptr = static_cast<const T*>(_rawData);
@@ -188,7 +188,7 @@ public:
     [[nodiscard]] AttributeData getData();
     /// It's an error to call this on attribute that has an input already because attr data is set by the graph...
     /// Hence: `Unplugged Input Attr`
-    [[nodiscard]] bool setUnpluggedInputAttrData(const AttributeData& inData) const;
+    bool setUnpluggedInputAttrData(const AttributeData& inData) const;
 };
 
 class InvalidAttrHandle final : public std::runtime_error

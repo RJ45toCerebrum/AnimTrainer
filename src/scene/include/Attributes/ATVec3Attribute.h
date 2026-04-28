@@ -31,7 +31,7 @@ public:
         const void* rawData = static_cast<const void*>(_data.data());
         const std::size_t elementCount = _data.size();
         assert(elementCount < std::numeric_limits<int32_t>::max());
-        const AttributeData data(rawData, static_cast<int>(elementCount), ATScene::AttributeDataType::Transform);
+        const AttributeData data(rawData, static_cast<int>(elementCount), ATScene::AttributeDataType::Vec3);
         return data;
     }
     bool setData(const AttributeData& attrData) override

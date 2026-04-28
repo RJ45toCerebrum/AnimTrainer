@@ -37,6 +37,7 @@ using NID = ATScene::NodeID;
 using ATScene::AttrHandleArray;
 using ATScene::ATAttributeHandle;
 using ATScene::AttributeDataType;
+using ATScene::AttributeData;
 
 
 void ATDrawLine(const vec3& start, const vec3& end, const Color& color)
@@ -514,13 +515,18 @@ int main(int argc, char *argv[])
     const AttrHandleArray inputHandles = sceneGraph.getNodeInputHandles(debugSphereNodeID);
     const AttrHandleArray outputHandles = sceneGraph.getNodeOutputHandles(debugSphereNodeID);
 
-    const auto posAttrItr = std::ranges::find_if(inputHandles,
-        [](const ATAttributeHandle attrHandle) -> bool
-    {
-        return attrHandle.getDataType() == AttributeDataType::Vec3;
-    });
-    ATAttributeHandle posAttr = *posAttrItr;
+    const ATAttributeHandle posHandle = inputHandles[0];
+    const ATAttributeHandle radHandle = inputHandles[1];
     ATAttributeHandle outPosAttr = outputHandles[0];
+
+    vec3 pos(1,1,1);
+    AttributeData attrData(&pos, 1, AttributeDataType::Vec3);
+    if (not posHandle.setUnpluggedInputAttrData(attrData))
+        throw std::runtime_error("Error setting unpluggedInputAttrData");
+    constexpr float newRad = 2.7f;
+    AttributeData radAttrData(&newRad, 1, AttributeDataType::Float);
+    if (not radHandle.setUnpluggedInputAttrData(radAttrData))
+        throw std::runtime_error("Error setting unpluggedInputAttrData");
 
     while (!WindowShouldClose())
     {
@@ -530,8 +536,19 @@ int main(int argc, char *argv[])
         ClearBackground(backgroundColor);
         {
             ATCamera::CameraRenderGuard cameraRenderGuard(cameraController);
-
             transformGizmo->Update(cameraController);
+
+            const bool shouldSetData = static_cast<int>(GetTime() / 3) % 2 == 0;
+            if (shouldSetData)
+            {
+                const float np = GetFrameTime() * 0.1f;
+                pos += vec3(np,np,np);
+                AttributeData posAttrData(&pos, 1, AttributeDataType::Vec3);
+                if (not posHandle.setUnpluggedInputAttrData(posAttrData))
+                    throw std::runtime_error("Error setting unpluggedInputAttrData");
+            }
+
+            AttributeData outAttrData = outPosAttr.getData();
 
             drawEnvironment(originGizmo);
         }
