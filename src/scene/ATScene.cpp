@@ -745,7 +745,10 @@ void ATSceneGraph::evaluateGraph(const ATAttributeHandle attrHandle)
 
 // TODO: implement. We do not check for cycles in initial implementation of scene graph impl.
 // be careful with forming cycles as it will end in inf recursion...
-//bool ATSceneGraph::willFormCycle(ATAttributeHandle outputHandle, ATAttributeHandle inputHandle) const;
+bool ATSceneGraph::willFormCycle(ATAttributeHandle outputHandle, ATAttributeHandle inputHandle) const
+{
+    throw std::runtime_error("[ATSceneGraph::willFormCycle] NO IMPL");
+}
 
 bool ATSceneGraph::connect(const ATAttributeHandle outputHandle, const ATAttributeHandle inputHandle)
 {
@@ -780,6 +783,19 @@ bool ATSceneGraph::connect(const ATAttributeHandle outputHandle, const ATAttribu
 bool ATSceneGraph::disconnect(ATAttributeHandle inputHandle)
 {
     throw std::runtime_error("[ATSceneGraph::disconnect] NO IMPL");
+}
+
+void ATSceneGraph::registerNodeType(const NodeTypeID typeId, std::unique_ptr<ISceneNodeFactory> factoryPtr)
+{
+    const auto fitr = _factories.find(typeId);
+    if (fitr != _factories.end())
+    {
+        std::cerr << "[ATSceneGraph::registerNodeType] Attempt to register factory when its already registered" << std::endl;
+        return;
+    }
+    auto [itr, success] = _factories.insert(std::make_pair(typeId, std::move(factoryPtr)));
+    if (not success)
+        std::cerr << "[ATSceneGraph::registerNodeType] Failed to insert factory for ID"  << typeId << std::endl;
 }
 #pragma endregion
 

@@ -64,7 +64,7 @@ public:
     bool disconnect(ATAttributeHandle inputHandle);
 
     // TODO: create iterator. This will do for now...
-    void forEachNodeType(NodeTypeID typeId, const std::function<void(ATSceneNode&)>& visitor) const;
+    //void forEachNodeType(NodeTypeID typeId, const std::function<void(ATSceneNode&)>& visitor) const;
 
     // --- Node factory registry ---
     static void registerNodeType(NodeTypeID typeId, std::unique_ptr<ISceneNodeFactory> factoryPtr);
