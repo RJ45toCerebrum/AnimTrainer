@@ -4,6 +4,7 @@
 #endif
 
 #include "ATSceneGraph.h"
+#include <iostream>
 
 START_NAMESPACE(ATScene)
 

@@ -25,12 +25,12 @@ consteval NodeTypeID atHashString(const std::string_view str)
     return hash;
 }
 
+// Attributes are solely owned by the scene node.
+using AttributePtr = std::unique_ptr<ATAttribute>;
+
 class ATSceneNode
 {
     friend class ATSceneGraph;
-
-    // Attributes are solely owned by the scene node.
-    using AttributePtr = std::unique_ptr<ATAttribute>;
 
     const NodeID _nodeID;
     std::string _name;

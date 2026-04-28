@@ -4,8 +4,6 @@
 #include "common.h"
 
 #include <exception>
-#include <iostream>
-#include <ostream>
 #include <span>
 #include <cstdint>
 #include <string>
@@ -69,7 +67,7 @@ consteval AttributeDataType getEnumForType()
         return AttributeDataType::Quaternion;
     else if constexpr (std::is_same_v<T, mat4x4>)
         return AttributeDataType::Mat4x4;
-    else if constexpr (std::is_same_v<T, Transform>)
+    else if constexpr (std::is_same_v<T, ATMath::Transform>)
         return AttributeDataType::Transform;
 
     throw std::exception("Type T not implemented yet");
@@ -82,7 +80,7 @@ concept BasicAttributeType =
     std::same_as<T, float> || std::same_as<T, std::string> ||
     std::same_as<T, glm::vec2> || std::same_as<T, glm::vec3> ||
     std::same_as<T, glm::vec4> || std::same_as<T, glm::quat> ||
-    std::same_as<T, glm::mat4x4> || std::same_as<T, Transform>;
+    std::same_as<T, glm::mat4x4> || std::same_as<T, ATMath::Transform>;
 
 enum class AttributeDirection : uint8_t
 {
@@ -102,13 +100,13 @@ inline std::string_view attributeDirToStr(const AttributeDirection dir)
 // DO NOT store these
 class AttributeData final
 {
-    const Observer<void> _rawData = nullptr;
+    const void* _rawData = nullptr;
     const int _elementCount = 0;
     const AttributeDataType _dataType;
 
 public:
     // TODO: provide constructor types for all the types
-    AttributeData(const Observer<void> rawData, const int elementCount, const AttributeDataType dataType) :
+    AttributeData(const void* rawData, const int elementCount, const AttributeDataType dataType) :
         _rawData(rawData), _elementCount(elementCount), _dataType(dataType)
     {
         assert(rawData != nullptr);
@@ -118,6 +116,10 @@ public:
     [[nodiscard]] bool isValid() const
     {
         return _rawData != nullptr and _elementCount >= 1;
+    }
+    [[nodiscard]] AttributeDataType getDataType() const
+    {
+        return _dataType;
     }
     // for controlled casting.
     template<typename T>
@@ -129,8 +131,9 @@ public:
             throw std::runtime_error("Template type T does not match internal dataType");
         return *static_cast<const T*>(_rawData);
     }
+
     template<typename T>
-    std::span<const T> getData() const
+    std::span<const T> getDataArray() const
     {
         assert(_rawData != nullptr);
         assert(_elementCount > 1);
@@ -228,6 +231,8 @@ class ATAttribute
     bool _dirty = false;
     std::variant<ATAttributeHandle, std::vector<ATAttributeHandle>> _sources;
 
+public:
+    // TODO: make construction protected...
     // scene nodes are solely responsible for construction of attributes
     ATAttribute(const AttributeDataType type, const NodeID owner, const bool isArray, const AttributeDirection direction) :
         _array(isArray), _type(type), _direction(direction), _owner(owner)
@@ -237,8 +242,6 @@ class ATAttribute
         else
             _sources.emplace<std::vector<ATAttributeHandle>>();
     }
-
-public:
     ATAttribute() = delete;
     ATAttribute(const ATAttribute&) = delete;
     ATAttribute(ATAttribute&&) = delete;
