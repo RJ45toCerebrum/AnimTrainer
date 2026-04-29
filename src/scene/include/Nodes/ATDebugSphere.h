@@ -1,9 +1,9 @@
 // Created by Tyler on 4/27/2026.
 #pragma once
 
-#include <ATSceneNode.h>
-#include <Attributes/ATVec3Attribute.h>
-#include <Attributes/ATFloatAttribute.h>
+#include "ATSceneNode.h"
+#include "Attributes/ATVec3Attribute.h"
+#include "Attributes/ATFloatAttribute.h"
 
 START_NAMESPACE(ATNode)
 
@@ -86,7 +86,7 @@ public:
     {
         return ATDebugSphereNode::nodeTypeID;
     }
-    static void registerNode()
+    static void registerNodeFactory()
     {
         std::unique_ptr<ISceneNodeFactory> factoryPtr = std::make_unique<DebugSphereNodeFactory>();
         ATScene::ATSceneGraph::registerNodeType(ATDebugSphereNode::nodeTypeID, std::move(factoryPtr));

@@ -2,8 +2,8 @@
 #pragma once
 
 #include <common.h>
-#include <Attributes/ATFloatAttribute.h>
-#include <ATSceneGraph.h>
+#include "Attributes/ATFloatAttribute.h"
+#include "ATSceneGraph.h"
 
 START_NAMESPACE(ATNode)
 
@@ -72,7 +72,7 @@ public:
     {
         return TimeNode::nodeTypeID;
     }
-    static void registerNode()
+    static void registerNodeFactory()
     {
         std::unique_ptr<ISceneNodeFactory> factoryPtr = std::make_unique<TimeNodeFactory>();
         ATScene::ATSceneGraph::registerNodeType(TimeNode::nodeTypeID, std::move(factoryPtr));

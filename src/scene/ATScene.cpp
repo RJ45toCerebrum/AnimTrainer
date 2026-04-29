@@ -3,7 +3,8 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #endif
 
-#include <ATSceneGraph.h>
+#include "ATSceneGraph.h"
+#include "Nodes/NodeInclude.h"
 #include <iostream>
 
 START_NAMESPACE(ATScene)
@@ -35,6 +36,7 @@ void createATSceneGraph()
         return;
     }
     sceneGraph = std::make_unique<ATSceneGraph>();
+    ATNode::registerNodeTypes();
 }
 
 void destroyATSceneGraph()

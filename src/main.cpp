@@ -1,21 +1,19 @@
-#include <iostream>
 #include <numbers>
-#include <raylib.h>
 
 #include "ATCamera.h"
 #include "ATMath.h"
 #include "ATRandom.h"
 
-#include "raymath.h"
-#include "rlgl.h"
-#include "glm/gtc/random.hpp"
-#include "glm/gtx/quaternion.hpp"
+#include <raylib.h>
+#include <raymath.h>
+#include <rlgl.h>
+#include <glm/gtc/random.hpp>
+#include <glm/gtx/quaternion.hpp>
 #include <glm/gtx/vector_angle.hpp>
+#include <glm/gtx/string_cast.hpp>
 
-#include "glm/gtx/string_cast.hpp"
-
-#include <ATSceneGraph.h>
-#include <Nodes/ATDebugSphere.h>
+#include "ATSceneGraph.h"
+#include "Nodes/NodeInclude.h"
 
 namespace
 {
@@ -512,7 +510,6 @@ int main(int argc, char *argv[])
 
     // scene graph init
     ATScene::createATSceneGraph();
-    ATNode::DebugSphereNodeFactory::registerNode();
     auto sgRef = ATScene::getSceneGraph();
     assert(sgRef.has_value());
     ATSceneGraph& sceneGraph = sgRef.value();
