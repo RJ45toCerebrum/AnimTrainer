@@ -103,6 +103,9 @@ public:
     virtual std::unique_ptr<ATSceneNode> createSceneNode(NodeID newNodeID, const std::string_view& name) = 0;
     virtual ~ISceneNodeFactory() = default;
     [[nodiscard]] virtual NodeTypeID getNodeTypeID() const = 0;
+    // Called after createSceneNode and node registered to graph. This is useful when
+    // you want to make graph changes immediately after the creation of the node.
+    virtual void postCreate(ATSceneGraph& sceneGraph, ATSceneNode& createdNode) {}
 };
 
 

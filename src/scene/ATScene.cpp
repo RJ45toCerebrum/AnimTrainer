@@ -183,7 +183,7 @@ bool ATAttribute::isPlugged() const
         return handle.isValid();
     }
     const auto& handles = std::get<kOutputAttrVariantIndex>(_sources);
-    return std::ranges::any_of(handles, [](const auto& handle) -> bool
+    return std::ranges::any_of(handles, [](const ATAttributeHandle handle) -> bool
     {
         return handle.isValid();
     });
@@ -285,7 +285,7 @@ bool ATAttribute::plugIncoming(const ATAttributeHandle outputAttr)
                      "call to plugIncoming on attribute that is output attribute" << std::endl;
         return false;
     }
-    // we do not allow implicit unplug. IF feel like that would produce lots of bugs...
+    // we do not allow implicit unplug. I feel like that would produce lots of bugs...
     if(isPlugged())
     {
         std::cerr << "[ATAttribute::plugIncoming] "
@@ -311,16 +311,22 @@ bool ATAttribute::plugIncoming(const ATAttributeHandle outputAttr)
 
 bool ATAttribute::plugOutgoing(const ATAttributeHandle inputAttr)
 {
+    // below we make quite a few checks to be safe, but this is acceptable
+    // here as plugging and unplugging should not be in a hotpath (unlike the getting / setting of data).
     if (not isOutputAttribute())
     {
         std::cerr << "[ATAttribute::plugOutgoing] "
              "call to plugOutgoing on attribute that is an input attribute" << std::endl;
         return false;
     }
+    if (inputAttr.direction() != AttributeDirection::Input)
+    {
+        std::cerr << "[ATAttribute::plugOutgoing] attempting to plug into attribute that is not an input attribute" << std::endl;
+        return false;
+    }
     if (not inputAttr.isValid())
     {
-        std::cerr << "[ATAttribute::plugOutgoing] "
-            "Can not plug with invalid input attribute..." << std::endl;
+        std::cerr << "[ATAttribute::plugOutgoing] Can not plug with invalid input attribute" << std::endl;
         return false;
     }
     // need to check if the attributes are compatible (aka same data types)
@@ -332,6 +338,17 @@ bool ATAttribute::plugOutgoing(const ATAttributeHandle inputAttr)
     }
 
     auto& outputSources = std::get<kOutputAttrVariantIndex>(_sources);
+    // check if we have registered this already
+    const auto anyHandleEqualPred = [inputAttr](const ATAttributeHandle pluggedInputAttrs) -> bool
+    {
+        return pluggedInputAttrs == inputAttr;
+    };
+    if (std::ranges::any_of(outputSources,anyHandleEqualPred))
+    {
+        std::cerr << "[ATAttribute::plugOutgoing] This attribute is "
+                     "already plugged into the input attribute. Double connect call with same params?" << std::endl;
+        return false;
+    }
     outputSources.push_back(inputAttr);
     return true;
 }
@@ -547,7 +564,7 @@ bool ATSceneNode::setUnpluggedInputAttrData(const ATAttributeHandle ah, const At
 }
 
 // NOTE: this method does not check for cycle. Graph is responsible for checking that before calling this.
-// Also note that this method is one directional. When graph connects attr's it needs to call symetrically.
+// Also note that this method is one directional. When graph connects attr's it needs to call symmetrically.
 bool ATSceneNode::plugAttribute(const ATAttributeHandle thisNodeAttribute, const ATAttributeHandle otherNodeAttribute)
 {
     ATAttribute& attrRef = getAttributeRef(thisNodeAttribute);
@@ -710,8 +727,10 @@ NodeID ATSceneGraph::createNode(const NodeTypeID typeId, const std::string& name
     const NodeID newNodeID = _nodes.size();
     SceneNodePtr newNode = factory.createSceneNode(newNodeID, name);
     assert(newNode != nullptr);
-
     _nodes.push_back(std::move(newNode));
+
+    ATSceneNode& newNodeRef = *_nodes.back();
+    factory.postCreate(*this, newNodeRef);
     return newNodeID;
 }
 
@@ -814,7 +833,7 @@ void ATSceneGraph::evaluateGraph(const ATAttributeHandle attrHandle)
 
 // TODO: implement. We do not check for cycles in initial implementation of scene graph impl.
 // be careful with forming cycles as it will end in inf recursion...
-bool ATSceneGraph::willFormCycle(ATAttributeHandle outputHandle, ATAttributeHandle inputHandle) const
+bool ATSceneGraph::willFormCycle(const ATAttributeHandle outputHandle, const ATAttributeHandle inputHandle) const
 {
     throw std::runtime_error("[ATSceneGraph::willFormCycle] NO IMPL");
 }
@@ -834,14 +853,14 @@ bool ATSceneGraph::connect(const ATAttributeHandle outputHandle, const ATAttribu
 
     // TODO: we should check for cycles before connecting. But for now we move on...
 
-    Observer<ATSceneNode> outgoingNode = getSceneNode(outputHandle);
-    if (not outgoingNode->plugAttribute(outputHandle, inputHandle))
+    ATSceneNode& outgoingNode = *_nodes[outputHandle.getNodeID()];
+    if (not outgoingNode.plugAttribute(outputHandle, inputHandle))
     {
         std::cerr << "[ATSceneGraph::connect][outgoingNode->plugAttribute] Failed to plug attribute" << std::endl;
         return false;
     }
-    Observer<ATSceneNode> incomingNode = getSceneNode(inputHandle);
-    if (not incomingNode->plugAttribute(inputHandle, outputHandle))
+    ATSceneNode& incomingNode = *_nodes[inputHandle.getNodeID()];
+    if (not incomingNode.plugAttribute(inputHandle, outputHandle))
     {
         std::cerr << "[ATSceneGraph::connect][incomingNode->plugAttribute] Failed to plug attribute" << std::endl;
         return false;
@@ -849,7 +868,7 @@ bool ATSceneGraph::connect(const ATAttributeHandle outputHandle, const ATAttribu
     return true;
 }
 
-bool ATSceneGraph::disconnect(ATAttributeHandle inputHandle)
+bool ATSceneGraph::disconnect(const ATAttributeHandle inputHandle)
 {
     throw std::runtime_error("[ATSceneGraph::disconnect] NO IMPL");
 }
