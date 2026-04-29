@@ -3,7 +3,7 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #endif
 
-#include "ATSceneGraph.h"
+#include <ATSceneGraph.h>
 #include <iostream>
 
 START_NAMESPACE(ATScene)
@@ -50,6 +50,8 @@ void destroyATSceneGraph()
 /// This is used as a bridge between AttributeHandle and Node containing attribute.
 /// This avoids having to create another function in Scene graph for every method we want to call
 /// on the scene node. We do not want this callable outside.
+/// The side effect of this is that Attribute's methods that call this for getting upstream node
+/// is `pinned` to this translation unit
 Observer<ATSceneNode> getSceneNode(const ATAttributeHandle ah)
 {
     const auto sgRef = getSceneGraph();
@@ -65,10 +67,23 @@ Observer<ATSceneNode> getSceneNode(const ATAttributeHandle ah)
     return sg._nodes[nodeID].get();
 }
 
+// any code using this function will be pinned to this translation unit.
+// OK with that sacrifice at this stage.
+ATAttribute& getAttributeRefUnchecked(const ATAttributeHandle ah)
+{
+    const ATSceneGraph& sg = *sceneGraph;
+    return sg.getAttributeRefUnchecked(ah);
+}
+
+
 
 #pragma region ATTR_HANDLE
 bool ATAttributeHandle::isValid() const
 {
+    // no sense in calling getSceneGraph() when we know it will return false.
+    if (_nodeID == kInvalidNodeID)
+        return false;
+
     const auto sgRef = getSceneGraph();
     if (not sgRef.has_value())
         return false;
@@ -89,11 +104,15 @@ bool ATAttributeHandle::areCompatible(const ATAttributeHandle otherHandle) const
     return getDataType() == otherHandle.getDataType();
 }
 
-uint32_t ATAttributeHandle::getElementCount() const
+int32_t ATAttributeHandle::getElementCount() const
 {
+    if (_nodeID == kInvalidNodeID)
+    {
+        std::cerr << "[ATAttributeHandle::getElementCount] Use of invalid handle to query attribute" << std::endl;
+        return -1;
+    }
     const Observer<ATSceneNode> sceneNode = getSceneNode(*this);
     assert(sceneNode != nullptr);
-    assert(sceneNode->isValidAttrHandle(*this));
     return sceneNode->getAttributeDataCount(*this);
 }
 
@@ -207,6 +226,53 @@ std::vector<ATAttributeHandle> ATAttribute::getSources() const
         return { std::get<kInputAttrVariantIndex>(_sources) };
 
     return std::get<kOutputAttrVariantIndex>(_sources);
+}
+
+int32_t ATAttribute::getDataCount() const
+{
+    if (isInputAttribute())
+    {
+        const ATAttributeHandle upstreamAttrHandle = std::get<kInputAttrVariantIndex>(_sources);
+        if (upstreamAttrHandle.getNodeID() != kInvalidNodeID)
+        {
+            assert(upstreamAttrHandle.getNodeID() != _owner);
+            return upstreamAttrHandle.getElementCount();
+        }
+    }
+    return getDataCountInternal();
+}
+
+AttributeData ATAttribute::getRawData() const
+{
+    // for input attributes that are plugged, the data comes from its upstream output attribute.
+    // This comes at the cost of indirection (fetch node from graph -> fetch attr on node -> call attributes getRawData -> with a few checks in between).
+    // THis comes at the benefit of not duplicating data.
+    if (isInputAttribute())
+    {
+        // directly doing this bypasses more expensive isPlugged method.
+        const ATAttributeHandle upstreamAttrHandle = std::get<kInputAttrVariantIndex>(_sources);
+        if (upstreamAttrHandle.getNodeID() != kInvalidNodeID)
+        {
+            // this should never happen and would result in inf recursion
+            assert(upstreamAttrHandle.getNodeID() != _owner);
+            const ATAttribute& upstreamOutputAttrRef = getAttributeRefUnchecked(upstreamAttrHandle);
+            return upstreamOutputAttrRef.getRawDataInternal();
+        }
+    }
+    return getRawDataInternal();
+}
+
+/// ALL attributes should copy data. never store raw pointers
+bool ATAttribute::setData(const AttributeData& attrData)
+{
+    if (isInputAttribute())
+    {
+        const ATAttributeHandle upstreamAttrHandle = std::get<kInputAttrVariantIndex>(_sources);
+        // never allow setData on input attribute that is plugged. This makes no sense as the data
+        // does not live on this attribute. Also, this should be set on upstream output attr during graph evaluation.
+        assert(upstreamAttrHandle.getNodeID() == kInvalidNodeID);
+    }
+    return setDataInternal(attrData);
 }
 
 bool ATAttribute::plugIncoming(const ATAttributeHandle outputAttr)
@@ -785,6 +851,12 @@ bool ATSceneGraph::connect(const ATAttributeHandle outputHandle, const ATAttribu
 bool ATSceneGraph::disconnect(ATAttributeHandle inputHandle)
 {
     throw std::runtime_error("[ATSceneGraph::disconnect] NO IMPL");
+}
+
+ATAttribute& ATSceneGraph::getAttributeRefUnchecked(const ATAttributeHandle ah) const
+{
+    const ATSceneNode& nodeRef = *_nodes[ah.getNodeID()];
+    return nodeRef.getAttributeRefUnchecked(ah);
 }
 
 void ATSceneGraph::registerNodeType(const NodeTypeID typeId, std::unique_ptr<ISceneNodeFactory> factoryPtr)

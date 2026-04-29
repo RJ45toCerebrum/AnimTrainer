@@ -35,6 +35,7 @@ class ATSceneGraph final
 
 private:
     friend Observer<ATSceneNode> getSceneNode(ATAttributeHandle ah);
+    friend ATAttribute& getAttributeRefUnchecked(ATAttributeHandle ah);
 
     [[nodiscard]] bool isValidNodeID(const NodeID nodeId) const
     {
@@ -43,6 +44,7 @@ private:
         return _nodes[nodeId] != nullptr;
     }
     void evaluateGraph(ATAttributeHandle attrHandle);
+    [[nodiscard]] ATAttribute& getAttributeRefUnchecked(ATAttributeHandle ah) const;
 
 public:
     // dependency injection for node factories instead? Could be cleaner than registerNodeType static.

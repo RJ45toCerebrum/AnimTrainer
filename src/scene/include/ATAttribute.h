@@ -178,14 +178,12 @@ public:
     [[nodiscard]] bool isValid() const;
     [[nodiscard]] bool isDirty() const;
     [[nodiscard]] bool areCompatible(ATAttributeHandle otherHandle) const;
-    [[nodiscard]] uint32_t getElementCount() const;
+    [[nodiscard]] int32_t getElementCount() const;
     [[nodiscard]] AttributeDirection direction() const;
     [[nodiscard]] AttributeDataType getDataType() const;
     [[nodiscard]] NodeID getNodeID() const;
     [[nodiscard]] std::string toString() const;
 
-    // TODO: make method that does not require requesting data in order for compute to be called.
-    void computeIfNeeded();
     // Causes graph evaluation
     [[nodiscard]] AttributeData getData();
     /// It's an error to call this on attribute that has an input already because attr data is set by the graph...
@@ -257,16 +255,22 @@ public:
     [[nodiscard]] AttributeDataType getDataType() const;
     [[nodiscard]] bool isArray() const;
 
-
-    [[nodiscard]] virtual int32_t getDataCount() const = 0;
-    [[nodiscard]] virtual AttributeData getRawData() const = 0;
-    virtual bool setData(const AttributeData& attrData) = 0;
+    [[nodiscard]] int32_t getDataCount() const;
+    [[nodiscard]] AttributeData getRawData() const;
+    bool setData(const AttributeData& attrData);
 
 protected:
+    [[nodiscard]] virtual int32_t getDataCountInternal() const = 0;
+    [[nodiscard]] virtual AttributeData getRawDataInternal() const = 0;
+    /// ALL attributes should copy data. never store raw pointers
+    virtual bool setDataInternal(const AttributeData& attrData) = 0;
+
     // NOTE: the plug methods do not check if a cycle will be formed. This should be checked by graph
     bool plugIncoming(ATAttributeHandle outputAttr);
     bool plugOutgoing(ATAttributeHandle inputAttr);
     bool unplug(ATAttributeHandle ah);
+    // TODO: implement method to notify of plug/unplug. This allows input attributes to free/allocate memory.
+    //virtual void plugNotify();
 
 private:
     // this only sets the _dirty flag. SceneGraph is responsible for marking all downstream attributes...

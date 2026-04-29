@@ -20,13 +20,14 @@ public:
         ATAttribute(ATScene::AttributeDataType::Vec3, owner, isArray, direction)
     {}
 
-    [[nodiscard]] int32_t getDataCount() const override
+protected:
+    [[nodiscard]] int32_t getDataCountInternal() const override
     {
         const std::size_t elementCount = _data.size();
         assert(elementCount < std::numeric_limits<int32_t>::max());
         return static_cast<int>(elementCount);
     }
-    [[nodiscard]] AttributeData getRawData() const override
+    [[nodiscard]] AttributeData getRawDataInternal() const override
     {
         const void* rawData = static_cast<const void*>(_data.data());
         const std::size_t elementCount = _data.size();
@@ -34,7 +35,7 @@ public:
         const AttributeData data(rawData, static_cast<int>(elementCount), ATScene::AttributeDataType::Vec3);
         return data;
     }
-    bool setData(const AttributeData& attrData) override
+    bool setDataInternal(const AttributeData& attrData) override
     {
         if (not attrData.isValid())
             return false;
