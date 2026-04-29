@@ -26,7 +26,7 @@ class ATDebugSphereNode : public ATSceneNode
 public:
     static constexpr NodeTypeID nodeTypeID = ATScene::atHashString("ATDebugSphereNode");
 
-    ATDebugSphereNode(const NodeID ownerNodeID, const std::string_view& name) :
+    ATDebugSphereNode(const NodeID ownerNodeID, const std::string_view name) :
         ATSceneNode(ownerNodeID, name)
     {
         AttributePtr positionAttribute =
@@ -77,7 +77,7 @@ class DebugSphereNodeFactory final : public ISceneNodeFactory
 public:
     DebugSphereNodeFactory() = default;
 
-    std::unique_ptr<ATSceneNode> createSceneNode(NodeID newNodeID, const std::string_view& name) override
+    std::unique_ptr<ATSceneNode> createSceneNode(NodeID newNodeID, const std::string_view name) override
     {
         std::unique_ptr<ATSceneNode> newNode = std::make_unique<ATDebugSphereNode>(newNodeID, name);
         return newNode;

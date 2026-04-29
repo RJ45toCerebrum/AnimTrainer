@@ -20,9 +20,14 @@ public:
     {}
 };
 
+/// TODO: think about multi-threading
+/// How do we get a separate physics steps
 class ATSceneGraph final
 {
     using SceneNodePtr = std::unique_ptr<ATSceneNode>;
+    static constexpr int kInvalidNodeAddress = 0;
+    static constexpr int kTimeNodeAddress = 1;
+
     // TODO: protect with mutex? When multiple threads come into play I will do thread safe check
     // oon various data structures. Too soon for that right now...
     static std::unordered_map<NodeTypeID, std::unique_ptr<ISceneNodeFactory>> _factories;
@@ -52,8 +57,9 @@ public:
     ATSceneGraph();
     ~ATSceneGraph();
 
-    NodeID createNode(NodeTypeID typeId, const std::string& name);
+    NodeID createNode(NodeTypeID typeId, std::string_view name);
     bool deleteNode(NodeID nodeId);
+    // TODO: Friendly name -> NodeID mapping
     [[nodiscard]] AttrHandleArray getNodeOutputHandles(NodeID nodeId) const;
     [[nodiscard]] AttrHandleArray getNodeInputHandles(NodeID nodeId) const;
     [[nodiscard]] bool isValidAttrHandle(ATAttributeHandle attrHandle) const;
@@ -62,6 +68,8 @@ public:
 
     /// This causes evaluation of the graph; should check AttributeData because this can fail
     [[nodiscard]] std::expected<AttributeData,int> getData(ATAttributeHandle attrHandle);
+    /// Any nodes connected to the default time node will be marked dirty
+    void update();
 
     [[nodiscard]] bool willFormCycle(ATAttributeHandle outputHandle, ATAttributeHandle inputHandle) const;
     bool connect(ATAttributeHandle outputHandle, ATAttributeHandle inputHandle);
@@ -70,6 +78,7 @@ public:
     // TODO: create iterator. This will do for now...
     //void forEachNodeType(NodeTypeID typeId, const std::function<void(ATSceneNode&)>& visitor) const;
 
+    [[nodiscard]] bool checkReservedAddresses() const;
     // --- Node factory registry ---
     static void registerNodeType(NodeTypeID typeId, std::unique_ptr<ISceneNodeFactory> factoryPtr);
 };

@@ -1,6 +1,4 @@
-//
 // Created by Tyler on 4/20/2026.
-//
 #pragma once
 
 #include "common.h"
@@ -39,12 +37,7 @@ class ATSceneNode
 
 public:
     // TODO: pass in polymorphic pool resource.
-    ATSceneNode(const NodeID nodeID, const std::string_view& name) :
-        _nodeID(nodeID), _name(name)
-    {
-        _inputAttributes.reserve(3);
-        _outputAttributes.reserve(3);
-    }
+    ATSceneNode(NodeID nodeID, std::string_view name);
     virtual ~ATSceneNode() = default;
 
     [[nodiscard]] NodeID getNodeID() const;
@@ -72,6 +65,7 @@ public:
 protected:
     [[nodiscard]] ATAttribute& getAttributeRef(ATAttributeHandle ah) const;
     [[nodiscard]] ATAttribute& getAttributeRefUnchecked(ATAttributeHandle ah) const;
+    [[nodiscard]] ATAttribute& getOutAttrRefUnchecked(int index) const;
     // DOES NOT cause re-evaluation of graph. the attribute must be clean for this call to work...
     [[nodiscard]] AttributeData getAttributeData(ATAttributeHandle ah) const;
 
@@ -100,7 +94,7 @@ class ISceneNodeFactory
 {
 public:
     // TODO: make ability to pass through args via std::forward...
-    virtual std::unique_ptr<ATSceneNode> createSceneNode(NodeID newNodeID, const std::string_view& name) = 0;
+    virtual std::unique_ptr<ATSceneNode> createSceneNode(NodeID newNodeID, std::string_view name) = 0;
     virtual ~ISceneNodeFactory() = default;
     [[nodiscard]] virtual NodeTypeID getNodeTypeID() const = 0;
     // Called after createSceneNode and node registered to graph. This is useful when

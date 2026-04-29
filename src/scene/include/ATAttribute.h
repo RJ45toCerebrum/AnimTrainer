@@ -97,8 +97,11 @@ inline std::string_view attributeDirToStr(const AttributeDirection dir)
     return outputStr;
 }
 
-// DO NOT store these
-class AttributeData final
+/// It's very dangerous to store these handles.
+/// These store raw pointer to non-owning memory location.
+/// Only used to set data on attribute or get data on attribute.
+/// IF used to get data, you should copy from the returned span of getDataArray
+class [[nodiscard]] AttributeData final
 {
     const void* _rawData = nullptr;
     const int _elementCount = 0;

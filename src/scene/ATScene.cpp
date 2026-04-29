@@ -37,6 +37,11 @@ void createATSceneGraph()
     }
     sceneGraph = std::make_unique<ATSceneGraph>();
     ATNode::registerNodeTypes();
+
+    // The graph always has the default time node as this is useful for many nodes that need a per-frame update
+    // Reserved Address: [1]
+    sceneGraph->createNode(ATNode::TimeNode::kNodeTypeID, ATNode::TimeNode::kDefaultTimeNodeName);
+    assert(sceneGraph->checkReservedAddresses());
 }
 
 void destroyATSceneGraph()
@@ -379,6 +384,13 @@ bool ATAttribute::unplug(const ATAttributeHandle ah)
 
 
 #pragma region SCENE_NODE
+ATSceneNode::ATSceneNode(const NodeID nodeID, const std::string_view name) :
+    _nodeID(nodeID), _name(name)
+{
+    _inputAttributes.reserve(3);
+    _outputAttributes.reserve(3);
+}
+
 bool ATSceneNode::isValidAttrHandle(const ATAttributeHandle ah) const
 {
     if (ah._nodeID != _nodeID or ah._nodeID == kInvalidNodeID)
@@ -417,6 +429,11 @@ ATAttribute& ATSceneNode::getAttributeRefUnchecked(const ATAttributeHandle ah) c
     if (ah._dataFlowDir == AttributeDirection::Input)
         return *_inputAttributes[ah._index];
     return *_outputAttributes[ah._index];
+}
+
+ATAttribute& ATSceneNode::getOutAttrRefUnchecked(const int index) const
+{
+    return *_outputAttributes[index];
 }
 
 NodeID ATSceneNode::getNodeID() const
@@ -670,6 +687,7 @@ ATAttributeHandle ATSceneNode::registerInputAttribute(AttributePtr newAttribute)
     const uint16_t attrID = _inputAttributes.size() - 1;
     return {_nodeID, attrID, AttributeDirection::Input};
 }
+
 ATAttributeHandle ATSceneNode::registerOutputAttribute(AttributePtr newAttribute)
 {
     _outputAttributes.push_back(std::move(newAttribute));
@@ -711,6 +729,8 @@ ATSceneGraph::ATSceneGraph()
 
     // TODO: polymorphic memory pool
     _nodes.reserve(50);
+    // Index 0 and 1 are reserved. Potentially more reserved addresses in the future.
+    // Reserved Address: [0]
     _nodes.push_back(nullptr);
 }
 
@@ -719,7 +739,7 @@ ATSceneGraph::~ATSceneGraph()
     _nodes.clear();
 }
 
-NodeID ATSceneGraph::createNode(const NodeTypeID typeId, const std::string& name)
+NodeID ATSceneGraph::createNode(const NodeTypeID typeId, const std::string_view name)
 {
     const auto fItr = _factories.find(typeId);
     if (fItr == _factories.end())
@@ -805,6 +825,29 @@ std::expected<AttributeData,int> ATSceneGraph::getData(const ATAttributeHandle a
     return node.getAttributeData(attrHandle);
 }
 
+void ATSceneGraph::update()
+{
+    // The way update works in AT:
+    // 1) set the default time node and mark time node output attr dirty
+    // 2) marking dirty results in all downstream nodes being markers dirty.
+    // 3) When data is requested from attribute handle, recursively call the compute methods (up chain).
+    // The benefit of this is compute is only called for those nodes that needs compute and never those that
+    // have not had their data requested (pull method). The bad side is that every node that needs update
+    // requires a float input attr and must connect to default time node in order to receive the update (even if unused).
+    // At time of writing, this seems like a good trade off over adding custom update logic path for updating nodes.
+    // This will likely not work for things like physics nodes. The physics simulation will need to play
+    // out regardless of request for data. So
+    // TODO: instead of having one global default time nodes, we should be able to create multiple.
+    ATSceneNode& defaultTimeNode = *_nodes[kTimeNodeAddress];
+    assert(defaultTimeNode.getOutputAttributeCount() == 1);
+    // This means InitWindow (raylib) should always be called before calling update on graph
+    const std::array rawTimeData = {GetFrameTime(), static_cast<float>(GetTime())};
+    const AttributeData timeData(rawTimeData.data(), rawTimeData.size(), AttributeDataType::Float);
+    ATAttribute& outputAttr = defaultTimeNode.getOutAttrRefUnchecked(0);
+    outputAttr.setData(timeData);
+    defaultTimeNode.markOutputsDirty();
+}
+
 void ATSceneGraph::evaluateGraph(const ATAttributeHandle attrHandle)
 {
     const NodeID nodeID = attrHandle.getNodeID();
@@ -879,6 +922,22 @@ ATAttribute& ATSceneGraph::getAttributeRefUnchecked(const ATAttributeHandle ah) 
 {
     const ATSceneNode& nodeRef = *_nodes[ah.getNodeID()];
     return nodeRef.getAttributeRefUnchecked(ah);
+}
+
+bool ATSceneGraph::checkReservedAddresses() const
+{
+    if (_nodes[kInvalidNodeAddress] != nullptr)
+        return false;
+
+    if (_nodes[kTimeNodeAddress] == nullptr)
+        return false;
+
+    {
+        const ATSceneNode& defaultTimeNode = *_nodes[kTimeNodeAddress];
+        if(defaultTimeNode.getNodeTypeID() != ATNode::TimeNode::kNodeTypeID or defaultTimeNode.getName() != ATNode::TimeNode::kDefaultTimeNodeName)
+            return false;
+    }
+    return true;
 }
 
 void ATSceneGraph::registerNodeType(const NodeTypeID typeId, std::unique_ptr<ISceneNodeFactory> factoryPtr)

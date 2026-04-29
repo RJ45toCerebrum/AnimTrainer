@@ -17,7 +17,8 @@ using FloatAttr = ATAttribute::ATFloatAttribute;
 using AttrData = ATScene::AttributeData;
 using ATScene::ISceneNodeFactory;
 
-
+/// Input and Output attributes store time data in the form:
+/// [delta Time, Elapsed Time (elapsed from window init)]
 class TimeNode final : public ATSceneNode
 {
     // in and out params store two floats => [delta Time, Game Elapsed Time]
@@ -25,9 +26,10 @@ class TimeNode final : public ATSceneNode
     ATAttributeHandle _outTimeAttr;
 
 public:
-    static constexpr NodeTypeID nodeTypeID = ATScene::atHashString("TimeNode");
+    static constexpr NodeTypeID kNodeTypeID = ATScene::atHashString("TimeNode");
+    static constexpr std::string_view kDefaultTimeNodeName = "DefaultTimeNode";
 
-    TimeNode(const NodeID ownerNodeID, const std::string_view& name) :
+    TimeNode(const NodeID ownerNodeID, const std::string_view name) :
         ATSceneNode(ownerNodeID, name)
     {
         AttributePtr inTimeAttrPtr = std::make_unique<FloatAttr>(ownerNodeID, true, AttributeDirection::Input);
@@ -39,7 +41,7 @@ public:
 
     [[nodiscard]] NodeTypeID getNodeTypeID() const override
     {
-        return nodeTypeID;
+        return kNodeTypeID;
     }
 
 protected:
@@ -63,19 +65,19 @@ class TimeNodeFactory final : public ISceneNodeFactory
 public:
     TimeNodeFactory() = default;
 
-    std::unique_ptr<ATSceneNode> createSceneNode(NodeID newNodeID, const std::string_view& name) override
+    std::unique_ptr<ATSceneNode> createSceneNode(NodeID newNodeID, const std::string_view name) override
     {
         std::unique_ptr<ATSceneNode> newNode = std::make_unique<TimeNode>(newNodeID, name);
         return newNode;
     }
     [[nodiscard]] NodeTypeID getNodeTypeID() const override
     {
-        return TimeNode::nodeTypeID;
+        return TimeNode::kNodeTypeID;
     }
     static void registerNodeFactory()
     {
         std::unique_ptr<ISceneNodeFactory> factoryPtr = std::make_unique<TimeNodeFactory>();
-        ATScene::ATSceneGraph::registerNodeType(TimeNode::nodeTypeID, std::move(factoryPtr));
+        ATScene::ATSceneGraph::registerNodeType(TimeNode::kNodeTypeID, std::move(factoryPtr));
     }
 };
 
