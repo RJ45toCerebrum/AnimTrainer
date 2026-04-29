@@ -662,9 +662,10 @@ ATAttributeHandle ATSceneNode::registerOutputAttribute(AttributePtr newAttribute
 AttributeData ATSceneNode::getAttributeData(const ATAttributeHandle ah) const
 {
     if (isDirty(ah))
+    {
         throw std::runtime_error("[ATSceneNode::getAttributeData] Should only be called after"
                                  " scene graph has fully recomputed upstream dependents.");
-
+    }
     const ATAttribute& attr = getAttributeRefUnchecked(ah);
     return attr.getRawData();
 }

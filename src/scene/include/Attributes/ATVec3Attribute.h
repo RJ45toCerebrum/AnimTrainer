@@ -13,6 +13,7 @@ using ATScene::AttributeDirection;
 
 class ATVec3Attribute final : public ATAttribute
 {
+    static constexpr auto kDataType = ATScene::AttributeDataType::Vec3;
     std::vector<glm::vec3> _data;
 
 public:
@@ -32,7 +33,7 @@ protected:
         const void* rawData = static_cast<const void*>(_data.data());
         const std::size_t elementCount = _data.size();
         assert(elementCount < std::numeric_limits<int32_t>::max());
-        const AttributeData data(rawData, static_cast<int>(elementCount), ATScene::AttributeDataType::Vec3);
+        const AttributeData data(rawData, static_cast<int>(elementCount), kDataType);
         return data;
     }
     bool setDataInternal(const AttributeData& attrData) override
@@ -40,7 +41,7 @@ protected:
         if (not attrData.isValid())
             return false;
 
-        assert(attrData.getDataType() == ATScene::AttributeDataType::Vec3);
+        assert(attrData.getDataType() == kDataType);
         _data.clear();
         const std::span<const glm::vec3> data = attrData.getDataArray<glm::vec3>();
         for (const glm::vec3& v : data)
