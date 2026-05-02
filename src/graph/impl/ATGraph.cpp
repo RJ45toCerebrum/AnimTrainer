@@ -196,8 +196,7 @@ bool SceneGraph::getAttrInfo(const NodeID nodeID, const AttributeDirection dir, 
         return false;
 
     const NodeRecord& nr = _nodeRecords[nodeID];
-    const std::vector<AttrID>& attrIDs = dir == AttributeDirection::Input ?
-        nr.inputAttrIDs : nr.outputAttrIDs;
+    const std::vector<AttrID>& attrIDs = dir == AttributeDirection::Input ? nr.inputAttrIDs : nr.outputAttrIDs;
 
     if (attrInfos.size() != attrIDs.size())
         return false;
@@ -212,6 +211,28 @@ bool SceneGraph::getAttrInfo(const NodeID nodeID, const AttributeDirection dir, 
         attrInfo.attrID = attrID;
     }
     return true;
+}
+
+std::vector<AttrInfo> SceneGraph::getAttrInfo(const NodeID nodeID, const AttributeDirection dir) const
+{
+    if (not isValidNodeID(nodeID))
+    {
+        std::cerr << "[SceneGraph::getAttrInfo] Attempting to get attribute info of invalid node" << std::endl;
+        return {};
+    }
+    const NodeRecord& nr = _nodeRecords[nodeID];
+    const std::vector<AttrID>& attrIDs = dir == AttributeDirection::Input ? nr.inputAttrIDs : nr.outputAttrIDs;
+    std::vector<AttrInfo> attrInfos(attrIDs.size());
+    for (int i = 0; i < attrInfos.size(); ++i)
+    {
+        AttrInfo& attrInfo = attrInfos[i];
+        const AttrID attrID = attrIDs[i];
+        assert(isValidAttrID(attrID));
+        const AttributeRecord& arec = _attributeRecords[attrID];
+        attrInfo.type = arec.type;
+        attrInfo.attrID = attrID;
+    }
+    return attrInfos;
 }
 
 std::span<const std::byte> SceneGraph::getData(const AttrID attrID) const

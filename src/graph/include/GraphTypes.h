@@ -239,6 +239,21 @@ struct NodeRecord final
     {
         return typeID == kInvalidNodeTypeID;
     }
+    NDESC bool hasAttr(const AttrID attrID) const
+    {
+        assert(not isTombstone());
+        const bool foundInputAttr = std::ranges::any_of(inputAttrIDs, [attrID](const AttrID iid) -> bool
+        {
+            return attrID == iid;
+        });
+        if (foundInputAttr)
+            return true;
+
+        return std::ranges::any_of(outputAttrIDs, [attrID](const AttrID oid) -> bool
+        {
+            return attrID == oid;
+        });
+    }
     void invalidate()
     {
         typeID = kInvalidNodeTypeID;

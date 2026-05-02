@@ -80,6 +80,7 @@ private:
     NDESC bool hasUpstreamInput(AttrID attrID) const;
     NDESC uint64_t getAttrComputeCode(AttrID aid) const;
     NDESC bool getAttrInfo(NodeID nodeID, AttributeDirection dir, std::span<AttrInfo> attrInfos) const;
+    NDESC std::vector<AttrInfo> getAttrInfo(NodeID nodeID, AttributeDirection dir) const;
     NDESC bool nodeNeedsCompute(const NodeRecord& node) const;
     void rebuildEvaluationOrder();
 
@@ -115,22 +116,24 @@ public:
         return _nodeTypeID;
     }
 
-    // std::array to avoid heap; this will fail if template param N is
+    // std::array to avoid heap; this will fail if template param N is not the actual attr count for this node.
     template<int N>
     bool inputAttrInfo(std::array<AttrInfo,N>& attrInfo) const
     {
-        const GraphRef gr = SceneGraph::instance();
-        assert(gr.has_value());
-        const SceneGraph& graphRef = gr.value();
+        const SceneGraph& graphRef = SceneGraph::instance();
         return graphRef.getAttrInfo(_nodeID, AttributeDirection::Input, attrInfo);
     }
     template<int N>
     void outputAttrInfo(std::array<AttrInfo,N>& attrInfo) const
     {
-        const GraphRef gr = SceneGraph::instance();
-        assert(gr.has_value());
-        const SceneGraph& graphRef = gr.value();
+        const SceneGraph& graphRef = SceneGraph::instance();
         return graphRef.getAttrInfo(_nodeID, AttributeDirection::Output, attrInfo);
+    }
+
+    NDESC std::vector<AttrInfo> inputAttrInfo() const
+    {
+        const SceneGraph& graphRef = SceneGraph::instance();
+        return graphRef.getAttrInfo(_nodeID, AttributeDirection::Input);
     }
 
     /// NOT thread safe. This is not an issue currently, as the graph will be running on main thread where
@@ -144,6 +147,7 @@ public:
         const SceneGraph& gr = SceneGraph::instance();
         // TODO: should make the graph getData method a template...
         const AttributeRecord& arec = gr._attributeRecords[attrID];
+        assert(arec.owner == _nodeID);
         constexpr AttributeDataType attrType = enumFromAttrType<T>();
         assert(arec.type == attrType);
         const std::span<const std::byte> byteData = gr.getData(attrID);
@@ -154,17 +158,23 @@ public:
     bool setUnpluggedInputAttrData(const AttrID attrID, const std::span<const T> data)
     {
         SceneGraph& gr = SceneGraph::instance();
-        if (not gr.isValidAttrID(attrID))
-        {
-            std::cerr << "Attempting to set data on Invalid attribute ID: " << attrID << std::endl;
-            return false;
-        }
+        assert(gr.isValidAttrID(attrID));
+        assert(gr.isValidNodeID(_nodeID));
         // TODO: need to fix. violation of my rule. This will due for now.
         const AttributeRecord& arec = gr._attributeRecords[attrID];
+        // never allow setting of attribute if it does not belong to the node this handle belongs to.
+        assert(arec.owner == _nodeID);
         constexpr AttributeDataType attrType = enumFromAttrType<T>();
         assert(arec.type == attrType);
         const std::span<const std::byte> byteData = DataSlot::convert(data);
         return gr.setUnpluggedInputAttrData(attrID, byteData);
+    }
+
+    template<AttributeTypeConcept T>
+    bool setUnpluggedInputAttrData(const AttrID attrID, const T data)
+    {
+        std::span<const T> dataSpan(&data, 1);
+        return setUnpluggedInputAttrData(attrID, dataSpan);
     }
 };
 

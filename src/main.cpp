@@ -31,8 +31,8 @@ using glm::mat4x4;
 using ATMath::toRLVec;
 
 using SceneGraph = ATGraph::SceneGraph;
-using NodeTypeID = ATGraph::NodeTypeID;
 using NodeHandle = ATGraph::NodeHandle;
+using AttrInfo = ATGraph::AttrInfo;
 
 
 /* TODO:
@@ -502,16 +502,21 @@ int main(int argc, char *argv[])
 
     ATCamera::CameraController cameraController;
     Material gizmoMat = LoadMaterialDefault();
-    std::unique_ptr<TransformGizmo> transformGizmo = std::make_unique<TransformGizmo>();
-    std::unique_ptr<TransformGizmo> originGizmo = std::make_unique<TransformGizmo>();
+    auto transformGizmo = std::make_unique<TransformGizmo>();
+    auto originGizmo = std::make_unique<TransformGizmo>();
     originGizmo->SetLocked(true);
 
     // scene graph init
     SceneGraph& sgInstance = ATGraph::SceneGraph::instance();
     ATGraph::NodePtr addNodePtr = std::make_unique<ATGraph::AddNode>();
     SceneGraph::registerNodeType(std::move(addNodePtr));
-    // create the node within the graph
+    // create the node within the graph and set the input attr data.
     NodeHandle newNodeHandle = sgInstance.createNode(ATGraph::AddNode::kNodeTypeId, "FirstNode");
+    const std::vector<AttrInfo> inputAttrInfo = newNodeHandle.inputAttrInfo();
+    newNodeHandle.setUnpluggedInputAttrData(inputAttrInfo[0].attrID, 1.0f);
+    newNodeHandle.setUnpluggedInputAttrData(inputAttrInfo[1].attrID, 2.0f);
+
+    sgInstance.evaluate();
 
     while (!WindowShouldClose())
     {
