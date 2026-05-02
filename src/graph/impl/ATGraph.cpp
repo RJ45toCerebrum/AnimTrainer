@@ -77,7 +77,7 @@ NodeHandle SceneGraph::createNode(const NodeTypeID typeID, const std::string_vie
         inputAttrRecord.owner = newNodeRecordID;
         inputAttrRecord.direction = iDesc.direction;
         inputAttrRecord.type = iDesc.type;
-        inputAttrRecord.upstream = kInvalidNodeID;
+        inputAttrRecord.upstream = kInvalidAttr;
 
         _attributeRecords.push_back(std::move(inputAttrRecord));
         newNodeRecord.inputAttrIDs.push_back(_attributeRecords.size() - 1);
@@ -104,9 +104,7 @@ NodeHandle SceneGraph::createNode(const NodeTypeID typeID, const std::string_vie
         newNodeRecord.outputAttrIDs.push_back(_attributeRecords.size() - 1);
 
         DataSlot newDataSlot;
-        // NOTE how I intentionally mismatch the data slot version and lastSeenVersions
-        // this is important as we want to compute to be called initially.
-        newDataSlot.version = newNodeRecord.lastSeenVersions.back() + 1;
+        newDataSlot.version = 1;
         _dataSlots.push_back(std::move(newDataSlot));
         assert(_attributeRecords.size() == _dataSlots.size());
     }

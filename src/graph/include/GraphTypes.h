@@ -65,7 +65,7 @@ consteval AttributeDataType enumFromAttrType()
 {
     if constexpr (std::is_same_v<T, float>)
         return AttributeDataType::Float;
-    else if constexpr (std::is_same_v<T, int>)
+    else if constexpr (std::is_same_v<T, glm::vec3>)
         return AttributeDataType::Vec3;
 
     throw std::exception("Type T not implemented yet");
@@ -187,6 +187,11 @@ struct DataSlot final
         return {rawData, bytes.size() / sizeof(T)};
     }
 
+    NDESC std::span<const std::byte> readAsBytes() const
+    {
+        return {bytes.data(), bytes.size()};
+    }
+
     template<AttributeTypeConcept T>
     void writeAsSpan(const std::span<const T> values)
     {
@@ -198,6 +203,7 @@ struct DataSlot final
     void writeRawBytes(const std::span<const std::byte> data)
     {
         bytes.assign(data.begin(), data.end());
+        version++;
     }
 
     template<AttributeTypeConcept T>

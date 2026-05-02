@@ -7,12 +7,12 @@ START_NAMESPACE(ATGraph)
 
 consteval NodeTypeID nodeTypeHash(const std::string_view str)
 {
-    constexpr uint64_t FNV_OFFSET_BASIS = 0xcbf29ce484222325ULL;
-    uint64_t hash = FNV_OFFSET_BASIS;
+    constexpr NodeTypeID FNV_OFFSET_BASIS = 0x811c9dc5u;
+    NodeTypeID hash = FNV_OFFSET_BASIS;
     for (const char c : str)
     {
-        constexpr uint64_t FNV_PRIME = 0x00000100000001B3ULL;
-        hash ^= static_cast<uint64_t>(static_cast<unsigned char>(c));
+        constexpr NodeTypeID FNV_PRIME = 0x01000193u;
+        hash ^= static_cast<NodeTypeID>(static_cast<unsigned char>(c));
         hash *= FNV_PRIME;
     }
     return hash;

@@ -103,12 +103,8 @@ public:
     {
         if (_nodeID == kInvalidNodeID or _nodeTypeID == kInvalidNodeTypeID)
             return false;
-        // we still need to check if it's a tombstone; _nodeID should be kInvalidNodeID
-        // but its possible this handle was returned before node deletion.
-        const GraphRef gr = SceneGraph::instance();
-        assert(gr.has_value());
-        const SceneGraph& graphRef = gr.value();
-        return graphRef.isTombstone(_nodeID);
+        const SceneGraph& gr = SceneGraph::instance();
+        return not gr.isValidNodeID(_nodeID);
     }
     NDESC NodeID nodeID() const
     {
@@ -137,7 +133,11 @@ public:
         return graphRef.getAttrInfo(_nodeID, AttributeDirection::Output, attrInfo);
     }
 
-    /// I would need to think about this alot more in multi-threaded context.
+    /// NOT thread safe. This is not an issue currently, as the graph will be running on main thread where
+    /// data is grabbed, BUT this will become a problem in the future.
+    /// BE CAREFUL with this. NEVER store these. IF you are not using the data immediately
+    /// after this call, you MUST copy the data. This method does not copy the data. The span points directly
+    /// into the DataSlots internal buffer. IF data slot reallocated, this is a dangling pointer. Use wisely.
     template<AttributeTypeConcept T>
     std::span<const T> getData(const AttrID attrID) const
     {
