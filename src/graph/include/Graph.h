@@ -1,0 +1,171 @@
+// Created by Tyler on 4/30/2026.
+#pragma once
+
+#include <iostream>
+
+#include "common.h"
+#include "NodeCompute.h"
+
+#include <stdexcept>
+#include <memory>
+#include <unordered_map>
+
+START_NAMESPACE(ATGraph)
+
+using NodePtr = std::unique_ptr<INodeCompute>;
+using GraphRef = std::optional<std::reference_wrapper<class SceneGraph>>;
+
+class NodeTypeNotFound : public std::runtime_error
+{
+    NodeTypeID _invalidTypeId;
+public:
+    explicit NodeTypeNotFound(const NodeTypeID invalidTypeId) :
+        std::runtime_error("Node Factory not found"), _invalidTypeId(invalidTypeId)
+    {}
+};
+
+
+class SceneGraph final
+{
+    // NodeHandle should never reach directly into graph types;
+    // ONLY call private methods.
+    friend class NodeHandle;
+
+    using GraphPtr = std::unique_ptr<SceneGraph>;
+    using NodePtr = std::unique_ptr<INodeCompute>;
+
+    static constexpr int kInvalidNodeAddress = 0;
+    static constexpr int kTimeNodeAddress = 1;
+
+    // only ever one instance of the graph at a time and only changes on scene load.
+    static GraphPtr _instance;
+    static std::unordered_map<NodeTypeID, NodePtr> _nodeTypeMap;
+
+    std::vector<NodeRecord> _nodeRecords;
+    // for initial implementation; _attributeRecords.size() should always equal _dataSlots.size()
+    // In other words, if a nodes input attribute becomes plugged, that node now gathers data from
+    // upstream data slot. Which makes that nodes input attr data slot a tombstone;
+    std::vector<AttributeRecord> _attributeRecords;
+    std::vector<DataSlot> _dataSlots;
+
+    uint64_t _sceneHash = 0;
+    bool _topoChanged = true;
+    // this should only ever change when there are structural changes to graph.
+    // create/delete, connect/disconnect
+    std::vector<NodeID> _evaluationOrder;
+    // _nodeNames.size() should always equal _nodeRecords.size()
+    std::vector<std::string> _nodeNames;
+
+public:
+    SceneGraph();
+    ~SceneGraph() = default;
+
+    // TODO: make command queue for methods that make graph structural changes.
+    NodeHandle createNode(NodeTypeID typeID, std::string_view name);
+    bool deleteNode(NodeID nodeID);
+    bool connect(AttrID outputAttr, AttrID inputAttr);
+    bool disconnect(AttrID outputAttr, AttrID inputAttr);
+
+    void evaluate();
+
+    static void registerNodeType(NodePtr nodeCompute);
+    static SceneGraph& instance();
+    static void destroy();
+
+private:
+    NDESC bool isValidAttrID(AttrID attrID) const;
+    NDESC bool isValidNodeID(NodeID nodeID) const;
+    NDESC bool isTombstone(NodeID nodeID) const;
+    /// will return false if it's not input attribute or if input attr has no upstream input
+    NDESC bool hasUpstreamInput(AttrID attrID) const;
+    NDESC uint64_t getAttrComputeCode(AttrID aid) const;
+    NDESC bool getAttrInfo(NodeID nodeID, AttributeDirection dir, std::span<AttrInfo> attrInfos) const;
+    NDESC bool nodeNeedsCompute(const NodeRecord& node) const;
+    void rebuildEvaluationOrder();
+
+    NDESC std::span<const std::byte> getData(AttrID attrID) const;
+    bool setUnpluggedInputAttrData(AttrID attrID, std::span<const std::byte> data);
+};
+
+class NDESC NodeHandle final
+{
+    const NodeID _nodeID;
+    const NodeTypeID _nodeTypeID;
+
+public:
+    NodeHandle(const NodeID nodeID, const NodeTypeID nodeTypeID) :
+        _nodeID(nodeID), _nodeTypeID(nodeTypeID)
+    {}
+    NodeHandle() :
+        _nodeID(kInvalidNodeID), _nodeTypeID(kInvalidNodeTypeID)
+    {}
+    NDESC bool isValid() const
+    {
+        if (_nodeID == kInvalidNodeID or _nodeTypeID == kInvalidNodeTypeID)
+            return false;
+        // we still need to check if it's a tombstone; _nodeID should be kInvalidNodeID
+        // but its possible this handle was returned before node deletion.
+        const GraphRef gr = SceneGraph::instance();
+        assert(gr.has_value());
+        const SceneGraph& graphRef = gr.value();
+        return graphRef.isTombstone(_nodeID);
+    }
+    NDESC NodeID nodeID() const
+    {
+        return _nodeID;
+    }
+    NDESC NodeTypeID nodeTypeID() const
+    {
+        return _nodeTypeID;
+    }
+
+    // std::array to avoid heap; this will fail if template param N is
+    template<int N>
+    bool inputAttrInfo(std::array<AttrInfo,N>& attrInfo) const
+    {
+        const GraphRef gr = SceneGraph::instance();
+        assert(gr.has_value());
+        const SceneGraph& graphRef = gr.value();
+        return graphRef.getAttrInfo(_nodeID, AttributeDirection::Input, attrInfo);
+    }
+    template<int N>
+    void outputAttrInfo(std::array<AttrInfo,N>& attrInfo) const
+    {
+        const GraphRef gr = SceneGraph::instance();
+        assert(gr.has_value());
+        const SceneGraph& graphRef = gr.value();
+        return graphRef.getAttrInfo(_nodeID, AttributeDirection::Output, attrInfo);
+    }
+
+    /// I would need to think about this alot more in multi-threaded context.
+    template<AttributeTypeConcept T>
+    std::span<const T> getData(const AttrID attrID) const
+    {
+        const SceneGraph& gr = SceneGraph::instance();
+        // TODO: should make the graph getData method a template...
+        const AttributeRecord& arec = gr._attributeRecords[attrID];
+        constexpr AttributeDataType attrType = enumFromAttrType<T>();
+        assert(arec.type == attrType);
+        const std::span<const std::byte> byteData = gr.getData(attrID);
+        return DataSlot::convert<T>(byteData);
+    }
+
+    template<AttributeTypeConcept T>
+    bool setUnpluggedInputAttrData(const AttrID attrID, const std::span<const T> data)
+    {
+        SceneGraph& gr = SceneGraph::instance();
+        if (not gr.isValidAttrID(attrID))
+        {
+            std::cerr << "Attempting to set data on Invalid attribute ID: " << attrID << std::endl;
+            return false;
+        }
+        // TODO: need to fix. violation of my rule. This will due for now.
+        const AttributeRecord& arec = gr._attributeRecords[attrID];
+        constexpr AttributeDataType attrType = enumFromAttrType<T>();
+        assert(arec.type == attrType);
+        const std::span<const std::byte> byteData = DataSlot::convert(data);
+        return gr.setUnpluggedInputAttrData(attrID, byteData);
+    }
+};
+
+END_NAMESPACE

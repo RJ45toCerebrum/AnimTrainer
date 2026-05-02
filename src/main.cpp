@@ -12,8 +12,8 @@
 #include <glm/gtx/vector_angle.hpp>
 #include <glm/gtx/string_cast.hpp>
 
-#include "ATSceneGraph.h"
-#include "Nodes/NodeInclude.h"
+#include "Graph.h"
+#include "Nodes/Math/AddNode.h"
 
 namespace
 {
@@ -30,12 +30,10 @@ using glm::quat;
 using glm::mat4x4;
 using ATMath::toRLVec;
 
-using ATScene::ATSceneGraph;
-using NID = ATScene::NodeID;
-using ATScene::AttrHandleArray;
-using ATScene::ATAttributeHandle;
-using ATScene::AttributeDataType;
-using ATScene::AttributeData;
+using SceneGraph = ATGraph::SceneGraph;
+using NodeTypeID = ATGraph::NodeTypeID;
+using NodeHandle = ATGraph::NodeHandle;
+
 
 /* TODO:
  * 1) Time Node + graph update:
@@ -509,28 +507,11 @@ int main(int argc, char *argv[])
     originGizmo->SetLocked(true);
 
     // scene graph init
-    ATScene::createATSceneGraph();
-    auto sgRef = ATScene::getSceneGraph();
-    assert(sgRef.has_value());
-    ATSceneGraph& sceneGraph = sgRef.value();
-
-    // node creation
-    const NID debugSphereNodeID = sceneGraph.createNode(ATNode::ATDebugSphereNode::nodeTypeID, "My First Node");
-    const AttrHandleArray inputHandles = sceneGraph.getNodeInputHandles(debugSphereNodeID);
-    const AttrHandleArray outputHandles = sceneGraph.getNodeOutputHandles(debugSphereNodeID);
-
-    const ATAttributeHandle posHandle = inputHandles[0];
-    const ATAttributeHandle radHandle = inputHandles[1];
-    ATAttributeHandle outPosAttr = outputHandles[0];
-
-    vec3 pos(1,1,1);
-    AttributeData attrData(&pos, 1, AttributeDataType::Vec3);
-    if (not posHandle.setUnpluggedInputAttrData(attrData))
-        throw std::runtime_error("Error setting unpluggedInputAttrData");
-    constexpr float newRad = 2.7f;
-    AttributeData radAttrData(&newRad, 1, AttributeDataType::Float);
-    if (not radHandle.setUnpluggedInputAttrData(radAttrData))
-        throw std::runtime_error("Error setting unpluggedInputAttrData");
+    SceneGraph& sgInstance = ATGraph::SceneGraph::instance();
+    ATGraph::NodePtr addNodePtr = std::make_unique<ATGraph::AddNode>();
+    SceneGraph::registerNodeType(std::move(addNodePtr));
+    // create the node within the graph
+    NodeHandle newNodeHandle = sgInstance.createNode(ATGraph::AddNode::kNodeTypeId, "FirstNode");
 
     while (!WindowShouldClose())
     {
@@ -542,24 +523,14 @@ int main(int argc, char *argv[])
             ATCamera::CameraRenderGuard cameraRenderGuard(cameraController);
             transformGizmo->Update(cameraController);
 
-            //const bool shouldSetData = static_cast<int>(GetTime() / 3) % 2 == 0;
-            //if (shouldSetData)
-            //{
-            //    const float np = GetFrameTime() * 0.1f;
-            //    pos += vec3(np,np,np);
-            //    AttributeData posAttrData(&pos, 1, AttributeDataType::Vec3);
-            //    if (not posHandle.setUnpluggedInputAttrData(posAttrData))
-            //        throw std::runtime_error("Error setting unpluggedInputAttrData");
-            //}
 
-            AttributeData outAttrData = outPosAttr.getData();
 
             drawEnvironment(originGizmo);
         }
     }
 
-
-    ATScene::destroyATSceneGraph();
+    // scene graph destroy
+    SceneGraph::destroy();
 
     UnloadMaterial(gizmoMat);
     CloseWindow();

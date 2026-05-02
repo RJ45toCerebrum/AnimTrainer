@@ -48,6 +48,11 @@ add_subdirectory(src/math)
 target_link_libraries(AnimTrainer PRIVATE ATMath)
 add_subdirectory(src/scene)
 target_link_libraries(AnimTrainer PRIVATE ATScene)
+# replacing old scene module with new graph module.
+# I feel like I painted myself into corner as far as multiple threads are concerned.
+# this is essentially a hard restart of scene.
+add_subdirectory(src/graph)
+target_link_libraries(AnimTrainer PRIVATE ATGraph)
 
 
 target_sources(AnimTrainer PRIVATE
