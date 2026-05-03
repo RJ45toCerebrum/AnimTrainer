@@ -98,7 +98,7 @@ NodeHandle SceneGraph::createNode(const NodeTypeID typeID, const std::string_vie
         outAttrRecord.owner = newNodeRecordID;
         outAttrRecord.direction = outDesc.direction;
         outAttrRecord.type = outDesc.type;
-        outAttrRecord.upstream = kInvalidNodeID;
+        outAttrRecord.upstream = kInvalidAttr;
 
         _attributeRecords.push_back(std::move(outAttrRecord));
         newNodeRecord.outputAttrIDs.push_back(_attributeRecords.size() - 1);
@@ -195,6 +195,11 @@ void SceneGraph::evaluate()
     }
 }
 
+bool SceneGraph::topologyChanged() const
+{
+    return _topoChanged;
+}
+
 bool SceneGraph::isValidNodeID(const NodeID nodeID) const
 {
     if (nodeID == kInvalidNodeID or nodeID >= _nodeRecords.size())
@@ -202,7 +207,7 @@ bool SceneGraph::isValidNodeID(const NodeID nodeID) const
     return not _nodeRecords[nodeID].isTombstone();
 }
 
-/// NOTE: an attribute is still NOT concidered a tombstone IF
+/// NOTE: an attribute is still NOT considered a tombstone IF
 /// its plugged and data is retrieved upstream because the attribute can be unplugged.
 /// Attributes or Nodes are only considered tombstone on deletion.
 bool SceneGraph::isValidAttrID(const AttrID attrID) const
@@ -291,7 +296,7 @@ bool SceneGraph::setUnpluggedInputAttrData(const AttrID attrID, const std::span<
     return true;
 }
 
-std::optional<AttrID> SceneGraph::fromNodeAttributeIndex(const NodeID nodeID, const int attrIndex) const
+std::optional<AttrID> SceneGraph::fromNodeAttributeIndex(const NodeID nodeID, const int attrIndex, AttributeDirection dir) const
 {
     if (not isValidNodeID(nodeID))
     {
@@ -299,10 +304,11 @@ std::optional<AttrID> SceneGraph::fromNodeAttributeIndex(const NodeID nodeID, co
         return std::nullopt;
     }
     const NodeRecord& nr = _nodeRecords[nodeID];
-    if (attrIndex < 0 or attrIndex >= nr.inputAttrIDs.size())
+    const std::vector<AttrID>& attrIDs = dir == AttributeDirection::Input ? nr.inputAttrIDs : nr.outputAttrIDs;
+    if (attrIndex < 0 or attrIndex >= attrIDs.size())
         return std::nullopt;
 
-    return nr.inputAttrIDs[attrIndex];
+    return attrIDs[attrIndex];
 }
 
 // This accounts for if the attribute is plugged in...

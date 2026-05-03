@@ -1,7 +1,9 @@
 // Created by Tyler on 5/2/2026.
 
+#include <numeric>
 #include <gtest/gtest.h>
 #include <print>
+#include <random>
 
 #include "Graph.h"
 #include "Nodes/Math/AddNode.h"
@@ -31,6 +33,20 @@ protected:
         SceneGraph::destroy();
     }
 };
+
+std::vector<float> generateRandomFloats(const size_t count)
+{
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution dis(0.0f, 10.0f);
+
+    std::vector<float> result;
+    result.reserve(count);
+    for (size_t i = 0; i < count; ++i)
+        result.push_back(dis(gen));
+
+    return result;
+}
 
 TEST(ExampleSuite, ExampleTest)
 {
@@ -66,13 +82,37 @@ TEST_F(GraphTestFixture, EdgeConnectsNodes)
     ATGraph::NodePtr addNodePtr = std::make_unique<AddNode>();
     SceneGraph::registerNodeType(std::move(addNodePtr));
 
+    const std::vector<float> rfs = generateRandomFloats(3);
+    const float expectedResult = std::accumulate(rfs.begin(), rfs.end(), 0.0f);
+
     NodeHandle nh0 = graphRef.createNode(AddNode::kNodeTypeId, "Node0");
     EXPECT_TRUE(nh0.isValid());
-    nh0.setUnpluggedInputByIndex(0, 7.0f);
+    nh0.setUnpluggedInputByIndex(0, rfs[0]);
+    nh0.setUnpluggedInputByIndex(1, rfs[1]);
+    const auto outAttrOpt = nh0.fromNodeAttributeIndex(0, ATGraph::AttributeDirection::Output);
+    EXPECT_TRUE(outAttrOpt.has_value());
+    const AttrID outputAttrID = outAttrOpt.value();
 
     NodeHandle nh1 = graphRef.createNode(AddNode::kNodeTypeId, "Node1");
     EXPECT_TRUE(nh1.isValid());
-    nh1.setUnpluggedInputByIndex(1, 9.0f);
+    EXPECT_TRUE(nh1.setUnpluggedInputByIndex(1, rfs[2]));
+    const auto inputAttrOpt = nh1.fromNodeAttributeIndex(0, ATGraph::AttributeDirection::Input);
+    EXPECT_TRUE(inputAttrOpt.has_value());
+    const AttrID inputAttrID = inputAttrOpt.value();
 
+    EXPECT_TRUE(graphRef.connect(outputAttrID, inputAttrID));
+    EXPECT_TRUE(graphRef.topologyChanged());
 
+    const auto resultAttrIDOpt = nh1.fromNodeAttributeIndex(0, ATGraph::AttributeDirection::Output);
+    EXPECT_TRUE(resultAttrIDOpt.has_value());
+    const AttrID resultAttrID = resultAttrIDOpt.value();
+
+    graphRef.evaluate();
+
+    EXPECT_TRUE(not graphRef.topologyChanged());
+
+    const std::span<const float> data = nh1.getData<float>(resultAttrID);
+    EXPECT_TRUE(data.size() == 1);
+    const float asbDiff = std::abs(data[0] - expectedResult);
+    EXPECT_TRUE( asbDiff < std::numeric_limits<float>::epsilon() );
 }

@@ -66,6 +66,7 @@ public:
     bool disconnect(AttrID outputAttr, AttrID inputAttr);
 
     void evaluate();
+    NDESC bool topologyChanged() const;
 
     static void registerNodeType(NodePtr nodeCompute);
     static SceneGraph& instance();
@@ -87,7 +88,7 @@ private:
     bool setUnpluggedInputAttrData(AttrID attrID, std::span<const std::byte> data);
     // maps the node id and an Attribute Index -> attribute ID.
     // The attributeID is a unique globally identifying ID where the attribute index only identifies it within a node.
-    NDESC std::optional<AttrID> fromNodeAttributeIndex(NodeID nodeID, int attrIndex) const;
+    NDESC std::optional<AttrID> fromNodeAttributeIndex(NodeID nodeID, int attrIndex, AttributeDirection dir) const;
 };
 
 class NDESC NodeHandle final
@@ -117,10 +118,12 @@ public:
     {
         return _nodeTypeID;
     }
-    NDESC std::optional<AttrID> fromNodeAttributeIndex(const int attrIndex) const
+    /// Maps the Attribute Index => AttrID
+    /// AttrID is globally identifying ID and Attribute index is the indexer into attr arrays of node record.
+    NDESC std::optional<AttrID> fromNodeAttributeIndex(const int attrIndex, const AttributeDirection dir) const
     {
         const SceneGraph& gr = SceneGraph::instance();
-        return gr.fromNodeAttributeIndex(_nodeID, attrIndex);
+        return gr.fromNodeAttributeIndex(_nodeID, attrIndex, dir);
     }
 
     // std::array to avoid heap; this will fail if template param N is not the actual attr count for this node.
@@ -188,7 +191,7 @@ public:
     bool setUnpluggedInputByIndex(const int attrIndex, std::span<const T> data)
     {
         const SceneGraph& gr = SceneGraph::instance();
-        const auto attrIDOpt = gr.fromNodeAttributeIndex(_nodeID, attrIndex);
+        const auto attrIDOpt = gr.fromNodeAttributeIndex(_nodeID, attrIndex, AttributeDirection::Input);
         if (not attrIDOpt)
             return false;
         const AttrID attrID = attrIDOpt.value();
