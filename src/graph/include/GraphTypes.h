@@ -153,6 +153,20 @@ struct AttributeRecord final
             return attrID != kInvalidAttr;
         });
     }
+    NDESC bool hasOutputSource(const AttrID attrID) const
+    {
+        assert(not isTombstone());
+        if (not isOutputAttr())
+            return false;
+        assert(upstream == kInvalidAttr);
+
+        const auto matchAttrID = [attrID](const AttrID outAttrID) -> bool
+        {
+            return attrID == outAttrID;
+        };
+        const auto fitr = std::ranges::find_if(downstream, matchAttrID);
+        return fitr != downstream.end();
+    }
 
     void invalidate()
     {

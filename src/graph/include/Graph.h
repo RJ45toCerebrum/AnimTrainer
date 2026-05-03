@@ -1,14 +1,12 @@
 // Created by Tyler on 4/30/2026.
 #pragma once
 
-#include <iostream>
-
 #include "common.h"
 #include "NodeCompute.h"
-
 #include <stdexcept>
 #include <memory>
 #include <unordered_map>
+#include <expected>
 
 START_NAMESPACE(ATGraph)
 
@@ -30,6 +28,7 @@ class SceneGraph final
     // NodeHandle should never reach directly into graph types;
     // ONLY call private methods.
     friend class NodeHandle;
+    friend class GraphTestFixture;
 
     using GraphPtr = std::unique_ptr<SceneGraph>;
     using NodePtr = std::unique_ptr<INodeCompute>;
@@ -86,6 +85,9 @@ private:
 
     NDESC std::span<const std::byte> getData(AttrID attrID) const;
     bool setUnpluggedInputAttrData(AttrID attrID, std::span<const std::byte> data);
+    // maps the node id and an Attribute Index -> attribute ID.
+    // The attributeID is a unique globally identifying ID where the attribute index only identifies it within a node.
+    NDESC std::optional<AttrID> fromNodeAttributeIndex(NodeID nodeID, int attrIndex) const;
 };
 
 class NDESC NodeHandle final
@@ -105,7 +107,7 @@ public:
         if (_nodeID == kInvalidNodeID or _nodeTypeID == kInvalidNodeTypeID)
             return false;
         const SceneGraph& gr = SceneGraph::instance();
-        return not gr.isValidNodeID(_nodeID);
+        return gr.isValidNodeID(_nodeID);
     }
     NDESC NodeID nodeID() const
     {
@@ -114,6 +116,11 @@ public:
     NDESC NodeTypeID nodeTypeID() const
     {
         return _nodeTypeID;
+    }
+    NDESC std::optional<AttrID> fromNodeAttributeIndex(const int attrIndex) const
+    {
+        const SceneGraph& gr = SceneGraph::instance();
+        return gr.fromNodeAttributeIndex(_nodeID, attrIndex);
     }
 
     // std::array to avoid heap; this will fail if template param N is not the actual attr count for this node.
@@ -175,6 +182,24 @@ public:
     {
         std::span<const T> dataSpan(&data, 1);
         return setUnpluggedInputAttrData(attrID, dataSpan);
+    }
+
+    template<AttributeTypeConcept T>
+    bool setUnpluggedInputByIndex(const int attrIndex, std::span<const T> data)
+    {
+        const SceneGraph& gr = SceneGraph::instance();
+        const auto attrIDOpt = gr.fromNodeAttributeIndex(_nodeID, attrIndex);
+        if (not attrIDOpt)
+            return false;
+        const AttrID attrID = attrIDOpt.value();
+        return setUnpluggedInputAttrData(attrID, data);
+    }
+
+    template<AttributeTypeConcept T>
+    bool setUnpluggedInputByIndex(const int attrIndex, const T data)
+    {
+        const std::span<const T> dataSpan(&data, 1);
+        return setUnpluggedInputByIndex(attrIndex, dataSpan);
     }
 };
 

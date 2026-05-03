@@ -2,6 +2,7 @@
 #pragma once
 
 #include "NodeCompute.h"
+#include <array>
 
 START_NAMESPACE(ATGraph)
 

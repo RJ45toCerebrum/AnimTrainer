@@ -127,8 +127,41 @@ bool SceneGraph::deleteNode(const NodeID nodeID)
 
 bool SceneGraph::connect(const AttrID outputAttr, const AttrID inputAttr)
 {
-    throw std::logic_error("[SceneGraph::deleteNode] Node ID not implemented");
+    if (not isValidAttrID(outputAttr))
+    {
+        std::cerr << "[SceneGraph::connect] Invalid output attribute ID " << outputAttr << std::endl;
+        return false;
+    }
+    if (not isValidAttrID(inputAttr))
+    {
+        std::cerr << "[SceneGraph::connect] Invalid input attribute ID " << inputAttr << std::endl;
+        return false;
+    }
+    AttributeRecord& inputAttrRec = _attributeRecords[inputAttr];
+    AttributeRecord& outputAttrRec = _attributeRecords[outputAttr];
+    if (inputAttrRec.type != outputAttrRec.type)
+    {
+        std::cerr << "[SceneGraph::connect] The attributes being connected have incompatible types" << std::endl;
+        return false;
+    }
+    if (not inputAttrRec.isInputAttr())
+    {
+        std::cerr << "[SceneGraph::connect] The input attribute passed in is actually an output attr" << std::endl;
+        return false;
+    }
+    if (inputAttrRec.hasInputSources())
+    {
+        std::cerr << "[SceneGraph::connect] Input attribute already has a source plugged in" << std::endl;
+        return false;
+    }
+    // something went wrong because input attribute does not have the upstream source
+    // but the output attribute already has a downstream of inputAttr. Something went wrong with disconnect?
+    assert(not outputAttrRec.hasOutputSource(inputAttr));
+
+    inputAttrRec.upstream = outputAttr;
+    outputAttrRec.downstream.push_back(inputAttr);
     _topoChanged = true;
+    return true;
 }
 
 bool SceneGraph::disconnect(const AttrID outputAttr, const AttrID inputAttr)
@@ -256,6 +289,20 @@ bool SceneGraph::setUnpluggedInputAttrData(const AttrID attrID, const std::span<
     DataSlot& ds = _dataSlots[attrID];
     ds.writeRawBytes(data);
     return true;
+}
+
+std::optional<AttrID> SceneGraph::fromNodeAttributeIndex(const NodeID nodeID, const int attrIndex) const
+{
+    if (not isValidNodeID(nodeID))
+    {
+        std::cerr << "Invalid node ID: " << nodeID << std::endl;
+        return std::nullopt;
+    }
+    const NodeRecord& nr = _nodeRecords[nodeID];
+    if (attrIndex < 0 or attrIndex >= nr.inputAttrIDs.size())
+        return std::nullopt;
+
+    return nr.inputAttrIDs[attrIndex];
 }
 
 // This accounts for if the attribute is plugged in...
