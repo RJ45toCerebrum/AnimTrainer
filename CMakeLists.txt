@@ -20,6 +20,7 @@ message(STATUS "Compiler Version: ${CMAKE_CXX_COMPILER_VERSION}")
 message(STATUS "Compiler Path: ${CMAKE_CXX_COMPILER}")
 message(STATUS "Source Dir: ${CMAKE_CURRENT_SOURCE_DIR}")
 
+# --- GLM ---
 message(STATUS "Fetching GLM")
 include(FetchContent)
 FetchContent_Declare(
@@ -41,7 +42,14 @@ FetchContent_Declare(
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 enable_testing()
-add_subdirectory(src/tests)
+
+# --- JSON lib ---
+FetchContent_Declare(
+        nlohmann_json
+        GIT_REPOSITORY https://github.com/nlohmann/json.git
+        GIT_TAG        v3.11.3
+)
+FetchContent_MakeAvailable(nlohmann_json)
 
 
 add_executable(AnimTrainer)
@@ -69,6 +77,8 @@ target_link_libraries(AnimTrainer PRIVATE ATScene)
 add_subdirectory(src/graph)
 target_link_libraries(AnimTrainer PRIVATE ATGraph)
 
+add_subdirectory(src/tests)
+target_link_libraries(AnimTrainer PRIVATE nlohmann_json::nlohmann_json)
 
 target_sources(AnimTrainer PRIVATE
         src/main.cpp

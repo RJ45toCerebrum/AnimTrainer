@@ -100,6 +100,7 @@ struct AttributeRecord final
     // upstream only valid for input attrs ; downstream only valid for output attrs
     // I will save space later, but for first iteration making one invalid is fine
     AttrID upstream = kInvalidAttr;
+    // no code should ever rely on the order of this vector.
     std::vector<AttrID> downstream;
 
     NDESC bool isTombstone() const
@@ -153,21 +154,29 @@ struct AttributeRecord final
             return attrID != kInvalidAttr;
         });
     }
-    NDESC bool hasOutputSource(const AttrID attrID) const
+
+    NDESC auto findOutputSource(const AttrID attrID) const -> std::vector<unsigned>::const_iterator
     {
         assert(not isTombstone());
         if (not isOutputAttr())
-            return false;
-        assert(upstream == kInvalidAttr);
+            return downstream.end();
 
-        const auto matchAttrID = [attrID](const AttrID outAttrID) -> bool
+        // should never have upstream and downstream on same attr.
+        assert(upstream == kInvalidAttr);
+        const auto matchAttrID = [attrID](const AttrID downstreamInputAttrs) -> bool
         {
-            return attrID == outAttrID;
+            return attrID == downstreamInputAttrs;
         };
-        const auto fitr = std::ranges::find_if(downstream, matchAttrID);
-        return fitr != downstream.end();
+        return std::ranges::find_if(downstream, matchAttrID);
     }
 
+    void removeOutputSourceChecked(const AttrID inputAttrID)
+    {
+        assert(isOutputAttr());
+        const auto fitr = findOutputSource(inputAttrID);
+        assert(fitr != downstream.end());
+        downstream.erase(fitr);
+    }
     void invalidate()
     {
         owner = kInvalidNodeID;
@@ -178,12 +187,20 @@ struct AttributeRecord final
 };
 
 
-/// for every attribute there is a DataSlot entry in the graph. meaning,
-/// the length of the attribute record list and the length of graphs data slot list are equal
-/// at all times. When a nodes output attr gets connected to input attr, this results in
-/// that data slot that was previously allocated to become dead memory.
-/// Later we will update to reclaim, but for the time being I leave this and if it becomes
-/// disconnected, then it becomes useful again.
+// for every attribute there is a DataSlot entry in the graph. meaning,
+// the length of the attribute record list and the length of graphs data slot list are equal
+// at all times. On Node deletion, the memory is considered a tombstone.
+// The internal bytes array memory will be reclaimed, but DataSlot in graph will not.
+// Tombstone memory per node deletion =
+// (Total attribute count for type) * sizeof(AttributeRecord) +
+// (Total attribute count for type) * sizeof(DataSlot) +
+// sizeof(NodeRecord)
+// EXAMPLE:
+// Lets say average attr count = 6
+// sizeof(AttributeRecord) = 48 ; sizeof(DataSlot) = 40 ; sizeof(NodeRecord) = 104
+// 6 * 48 + 6 * 40 + 104 = 632 bytes of wasted space per node deletion (assuming all internal vectors are reclaimed).
+// However, when scene reloaded, space will be reclaimed. so not too big a deal.
+// This makes deletion and (undo) much easier and less error prone. So I go with tombstone approach.
 struct DataSlot final
 {
     std::vector<std::byte> bytes;
@@ -238,15 +255,19 @@ struct DataSlot final
 };
 
 
+// TODO: make all fields of the NodeRecord const (except for lastSeenVersions) and re-work graph createNode method.
+// We require inputAttrIDs and outputAttrIDs to stay fixed for the lifetime of NodeRecord.
 /// Every created node has a NodeRecord
 /// typeID => INodeCompute
 struct NodeRecord final
 {
     // the nodes ID is its index into graphs node records array. No need to store here.
     NodeTypeID typeID = kInvalidNodeTypeID;
+    // important: inputAttrIDs & outputAttrIDs vectors MUST stay fixed.
+    // This is because data can beread/write using the indices of these arrays.
     std::vector<AttrID> inputAttrIDs;
     std::vector<AttrID> outputAttrIDs;
-    // lastSeenVersions.size() must equal inputAttrIDs.size()
+    // lastSeenVersions.size() must stay equal to inputAttrIDs.size()
     std::vector<uint64_t> lastSeenVersions;
 
     NDESC bool isTombstone() const

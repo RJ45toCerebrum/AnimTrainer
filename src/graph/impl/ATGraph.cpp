@@ -125,49 +125,99 @@ bool SceneGraph::deleteNode(const NodeID nodeID)
     _topoChanged = true;
 }
 
-bool SceneGraph::connect(const AttrID outputAttr, const AttrID inputAttr)
+/// Only asks question whether we can connect. NOT if a cycle will form.
+/// There must be a additional check for cycles.
+bool SceneGraph::canConnect(const AttrID outputAttr, const AttrID inputAttr) const
 {
-    if (not isValidAttrID(outputAttr))
+    if (not isValidInputAttrID(inputAttr))
     {
-        std::cerr << "[SceneGraph::connect] Invalid output attribute ID " << outputAttr << std::endl;
+        std::cerr << "[SceneGraph::connect] Invalid input attribute " << inputAttr << std::endl;
         return false;
     }
-    if (not isValidAttrID(inputAttr))
+    if (not isValidOutputAttrID(outputAttr))
     {
         std::cerr << "[SceneGraph::connect] Invalid input attribute ID " << inputAttr << std::endl;
         return false;
     }
-    AttributeRecord& inputAttrRec = _attributeRecords[inputAttr];
-    AttributeRecord& outputAttrRec = _attributeRecords[outputAttr];
+    const AttributeRecord& inputAttrRec = _attributeRecords[inputAttr];
+    const AttributeRecord& outputAttrRec = _attributeRecords[outputAttr];
     if (inputAttrRec.type != outputAttrRec.type)
     {
         std::cerr << "[SceneGraph::connect] The attributes being connected have incompatible types" << std::endl;
         return false;
     }
-    if (not inputAttrRec.isInputAttr())
-    {
-        std::cerr << "[SceneGraph::connect] The input attribute passed in is actually an output attr" << std::endl;
-        return false;
-    }
     if (inputAttrRec.hasInputSources())
     {
-        std::cerr << "[SceneGraph::connect] Input attribute already has a source plugged in" << std::endl;
+        if (inputAttrRec.upstream == outputAttr)
+        {
+            const auto fitr = outputAttrRec.findOutputSource(inputAttr);
+            assert(fitr != outputAttrRec.downstream.end());
+            std::cerr << "[SceneGraph::connect] Input attribute already has outputAttr plugged in" << std::endl;
+        }
+        else
+        {
+            std::cerr << "[SceneGraph::connect] Input attribute already has a source plugged in" << std::endl;
+        }
         return false;
     }
-    // something went wrong because input attribute does not have the upstream source
-    // but the output attribute already has a downstream of inputAttr. Something went wrong with disconnect?
-    assert(not outputAttrRec.hasOutputSource(inputAttr));
+    const auto fitr = outputAttrRec.findOutputSource(inputAttr);
+    assert(fitr == outputAttrRec.downstream.end());
+    return true;
+}
 
+bool SceneGraph::connect(const AttrID outputAttr, const AttrID inputAttr)
+{
+    if (not canConnect(outputAttr, inputAttr))
+        return false;
+
+    AttributeRecord& outputAttrRec = _attributeRecords[outputAttr];
+    AttributeRecord& inputAttrRec = _attributeRecords[inputAttr];
     inputAttrRec.upstream = outputAttr;
     outputAttrRec.downstream.push_back(inputAttr);
+
+    // once input attribute plugged in, the data source now exists in the upstream data slot.
+    // claim the current data slot memory
+    DataSlot& currentAttrData = _dataSlots[inputAttr];
+    currentAttrData.bytes.clear();
+    currentAttrData.bytes.shrink_to_fit();
+
     _topoChanged = true;
     return true;
 }
 
 bool SceneGraph::disconnect(const AttrID outputAttr, const AttrID inputAttr)
 {
-    throw std::logic_error("[SceneGraph::deleteNode] Node ID not implemented");
+    if (not isValidInputAttrID(inputAttr))
+    {
+        std::cerr << "[SceneGraph::disconnect] The input attribute passed in is invalid." << std::endl;
+        return false;
+    }
+    if (not isValidOutputAttrID(outputAttr))
+    {
+        std::cerr << "[SceneGraph::disconnect] The output attribute passed in is invalid." << std::endl;
+        return false;
+    }
+    AttributeRecord& inputAttrRec = _attributeRecords[inputAttr];
+    AttributeRecord& outputAttrRec = _attributeRecords[outputAttr];
+    // are they actually connected?
+    if (inputAttrRec.upstream != outputAttr)
+    {
+        const auto fitr = outputAttrRec.findOutputSource(inputAttr);
+        assert(fitr == outputAttrRec.downstream.end());
+        std::cerr << "[SceneGraph::disconnect] The input attribute has no incoming connection from output attribute. "
+        << "They should be connected for a valid disconnect call." << std::endl;
+        return false;
+    }
+    // IF the types do not match here, something went horribly wrong.
+    assert(inputAttrRec.type == outputAttrRec.type);
+    // assert because this means the graph is straight broken
+    const auto fitr = outputAttrRec.findOutputSource(inputAttr);
+    assert(fitr != outputAttrRec.downstream.end());
+
+    inputAttrRec.upstream = kInvalidAttr;
+    outputAttrRec.downstream.erase(fitr);
     _topoChanged = true;
+    return true;
 }
 
 void SceneGraph::evaluate()
@@ -214,6 +264,30 @@ bool SceneGraph::isValidAttrID(const AttrID attrID) const
 {
     // an attribute can exist at index 0.
     return attrID < _attributeRecords.size() and not _attributeRecords[attrID].isTombstone();
+}
+
+bool SceneGraph::isValidInputAttrID(const AttrID attrID) const
+{
+    if (attrID >= _attributeRecords.size())
+        return false;
+
+    const AttributeRecord& attrRecord = _attributeRecords[attrID];
+    if (attrRecord.isTombstone())
+        return false;
+
+    return attrRecord.isInputAttr();
+}
+
+bool SceneGraph::isValidOutputAttrID(const AttrID attrID) const
+{
+    if (attrID >= _attributeRecords.size())
+        return false;
+
+    const AttributeRecord& attrRecord = _attributeRecords[attrID];
+    if (attrRecord.isTombstone())
+        return false;
+
+    return attrRecord.isOutputAttr();
 }
 
 bool SceneGraph::isTombstone(const NodeID nodeID) const
@@ -347,12 +421,14 @@ void SceneGraph::rebuildEvaluationOrder()
 {
     std::unordered_map<NodeID, int16_t> inDegMap;
     std::queue<NodeID> topoOrderQueue;
+    uint32_t nodeCount = 0;
     for (NodeID nid = 0; nid < _nodeRecords.size(); nid++)
     {
         const NodeRecord& nRec = _nodeRecords[nid];
         if (nRec.isTombstone())
             continue;
 
+        nodeCount++;
         assert(nRec.inputAttrIDs.size() < std::numeric_limits<int16_t>::max());
         int16_t upstreamDeg = 0;
         for (const AttrID aid : nRec.inputAttrIDs)
@@ -362,8 +438,12 @@ void SceneGraph::rebuildEvaluationOrder()
         }
         inDegMap.insert({nid, upstreamDeg});
         if (upstreamDeg == 0)
-            topoOrderQueue.emplace(nid); // not push because I am getting strange pointer error
+            topoOrderQueue.emplace(nid);
     }
+    // It's possible for 0 nodes to have an in-degree of 0. This is recoverable, however, I do not attempt this now.
+    // TODO: recover from missing topological island error
+    // For each topological island, there should be at least 1 node present (but not necessarily 1).
+    assert(not topoOrderQueue.empty() && "When attempting to rebuild evaluation order, 0 nodes had a in-degree of 0.");
 
     _evaluationOrder.clear();
     while (not topoOrderQueue.empty())
@@ -389,6 +469,8 @@ void SceneGraph::rebuildEvaluationOrder()
             }
         }
     }
+    assert(_evaluationOrder.size() == nodeCount && "Not every node is in the evaluation order vector. "
+                                                   "This means some nodes could not be computed.");
     _topoChanged = false;
 }
 

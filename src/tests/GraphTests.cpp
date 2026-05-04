@@ -116,3 +116,28 @@ TEST_F(GraphTestFixture, EdgeConnectsNodes)
     const float asbDiff = std::abs(data[0] - expectedResult);
     EXPECT_TRUE( asbDiff < std::numeric_limits<float>::epsilon() );
 }
+
+/* Next Test: Build Topo from JSON:
+{
+    "Node0" :
+    {
+        "type": "AddNode",
+        "defaultInput": [3.0f, 7.0f],
+        "connect" :
+        [
+            {
+                "nodeName" : "Node1",
+                "inputAttrIndex" : 0
+            },
+            {
+                "nodeName" : "Node2",
+                "inputAttrIndex" : 1
+            }
+        ]
+    },
+    "Node1" : ...,
+    "Node2" : ...
+}
+
+ This will make testing substantially easier. Instead of manually connecting everything as in the above.
+ */

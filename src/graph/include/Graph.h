@@ -28,6 +28,7 @@ class SceneGraph final
     // NodeHandle should never reach directly into graph types;
     // ONLY call private methods.
     friend class NodeHandle;
+    // TODO: figure out why this is not working as expected with gtest fixture.
     friend class GraphTestFixture;
 
     using GraphPtr = std::unique_ptr<SceneGraph>;
@@ -62,6 +63,9 @@ public:
     // TODO: make command queue for methods that make graph structural changes.
     NodeHandle createNode(NodeTypeID typeID, std::string_view name);
     bool deleteNode(NodeID nodeID);
+    /// Important Note on connection:
+    /// Cycle detection occurs during graph evaluation. This means a connection call can succeed but
+    /// forms a cycles which is invalid. An error log will occur and the connection will be removed.
     bool connect(AttrID outputAttr, AttrID inputAttr);
     bool disconnect(AttrID outputAttr, AttrID inputAttr);
 
@@ -74,6 +78,8 @@ public:
 
 private:
     NDESC bool isValidAttrID(AttrID attrID) const;
+    NDESC bool isValidInputAttrID(AttrID attrID) const;
+    NDESC bool isValidOutputAttrID(AttrID attrID) const;
     NDESC bool isValidNodeID(NodeID nodeID) const;
     NDESC bool isTombstone(NodeID nodeID) const;
     /// will return false if it's not input attribute or if input attr has no upstream input
@@ -82,6 +88,8 @@ private:
     NDESC bool getAttrInfo(NodeID nodeID, AttributeDirection dir, std::span<AttrInfo> attrInfos) const;
     NDESC std::vector<AttrInfo> getAttrInfo(NodeID nodeID, AttributeDirection dir) const;
     NDESC bool nodeNeedsCompute(const NodeRecord& node) const;
+    NDESC bool canConnect(AttrID outputAttr, AttrID inputAttr) const;
+    NDESC bool willFormCycle(AttrID outputAttr, AttrID inputAttr) const;
     void rebuildEvaluationOrder();
 
     NDESC std::span<const std::byte> getData(AttrID attrID) const;
