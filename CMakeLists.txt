@@ -51,6 +51,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(nlohmann_json)
 
+add_compile_definitions(PROJECT_ROOT_DIR="${PROJECT_SOURCE_DIR}")
 
 add_executable(AnimTrainer)
 
@@ -78,7 +79,7 @@ add_subdirectory(src/graph)
 target_link_libraries(AnimTrainer PRIVATE ATGraph)
 
 add_subdirectory(src/tests)
-target_link_libraries(AnimTrainer PRIVATE nlohmann_json::nlohmann_json)
+target_link_libraries(AnimTrainer PUBLIC nlohmann_json::nlohmann_json)
 
 target_sources(AnimTrainer PRIVATE
         src/main.cpp

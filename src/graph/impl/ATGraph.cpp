@@ -2,26 +2,44 @@
 #include "Graph.h"
 
 #include <queue>
+#include <stack>
 #include <random>
 #include <iostream>
+#include <set>
 
 START_NAMESPACE(ATGraph)
 
+
 SceneGraph::GraphPtr SceneGraph::_instance = nullptr;
 std::unordered_map<NodeTypeID, NodePtr> SceneGraph::_nodeTypeMap;
+std::unordered_map<std::string_view, NodeTypeID> SceneGraph::_nodeNameMap;
 
 void SceneGraph::registerNodeType(NodePtr nodeCompute)
 {
     const NodeTypeID nodeTypeID = nodeCompute->nodeTypeID();
+    const std::string_view nodeName = nodeCompute->nodeName();
     const auto fitr = _nodeTypeMap.find(nodeTypeID);
     if (fitr != _nodeTypeMap.end())
     {
         std::cerr << "[SceneGraph::registerNodeType] attempt to register the same node type" << std::endl;
         return;
     }
-    if (const auto [_,success] =
-        _nodeTypeMap.insert({nodeTypeID, std::move(nodeCompute)}); !success)
+    const auto [_,success] =
+        _nodeTypeMap.insert({nodeTypeID, std::move(nodeCompute)});
+    if (!success)
+    {
         std::cerr << "[SceneGraph::registerNodeType] Failed to insert node." << std::endl;
+        return;
+    }
+    _nodeNameMap.insert({nodeName, nodeTypeID});
+}
+
+std::optional<NodeTypeID> SceneGraph::nodeTypeID(const std::string_view nodeName)
+{
+    const auto fitr = _nodeNameMap.find(nodeName);
+    if (fitr == _nodeNameMap.end())
+        return std::nullopt;
+    return fitr->second;
 }
 
 SceneGraph& SceneGraph::instance()
@@ -60,6 +78,12 @@ NodeHandle SceneGraph::createNode(const NodeTypeID typeID, const std::string_vie
     if (fitr == _nodeTypeMap.end())
     {
         std::cerr << "[SceneGraph::registerNodeType] Node type " << typeID << " not found" << std::endl;
+        return {};
+    }
+    if (_nameToNodeID.contains(name))
+    {
+        std::cerr << "[SceneGraph::registerNodeType] Node with name " << name <<
+            " already present in graph. Node names need to be unique" << std::endl;
         return {};
     }
     const INodeCompute& nodeCompute = *fitr->second;
@@ -112,11 +136,90 @@ NodeHandle SceneGraph::createNode(const NodeTypeID typeID, const std::string_vie
     assert(newNodeRecord.inputAttrIDs.size() == newNodeRecord.lastSeenVersions.size());
     _nodeRecords.push_back(std::move(newNodeRecord));
     _nodeNames.emplace_back(name);
+    _nameToNodeID.insert({name, newNodeRecordID});
     assert(_nodeRecords.size() == _nodeNames.size());
 
     _topoChanged = true;
-    const NodeID nid = _nodeRecords.size() - 1;
-    return {nid, typeID};
+    return {newNodeRecordID, typeID};
+}
+
+// For initial implementation, we require the graph to be empty.
+// TODO: remove empty graph constraint.
+bool SceneGraph::buildFromGraphJson(const std::vector<JsonNodeGraphData>& graphData)
+{
+    // TODO: do not allow partial construction if something goes wrong.
+    // 1) make command queue.
+    // 2) if something goes wrong, undo the all commands that came before.
+    // for now, it just leave it partial and exit early.
+
+    assert(not _nodeRecords.empty());
+    // Index 0 is always the invalid index.
+    if (_nodeRecords.size() > 1)
+    {
+        std::cerr << "Graph must be empty for valid call to SceneGraph::buildFromGraphJson" << std::endl;
+        return false;
+    }
+    // first create all the nodes.
+    for (const JsonNodeGraphData& nodeData : graphData)
+    {
+        const auto fitr = _nodeNameMap.find(nodeData.nodeTypeName);
+        if (fitr == _nodeNameMap.end())
+        {
+            std::cerr << "[SceneGraph::buildFromGraphJson] Unable to convert node type name to node type ID"
+                << ". Was this node type registered (registerNodeType)?" << std::endl;
+            return false;
+        }
+        const NodeTypeID nodeTypeID = fitr->second;
+        const NodeHandle newNodeHandle = createNode(nodeTypeID, nodeData.nodeName);
+        if (not newNodeHandle.isValid())
+        {
+            std::cerr << "[SceneGraph::buildFromGraphJson] Failed to create node with name: "
+            << nodeData.nodeName << std::endl;
+            return false;
+        }
+    }
+    for (const JsonNodeGraphData& nodeData : graphData)
+    {
+        const std::string& fromNodeName = nodeData.nodeName;
+        const auto fromNodeIDItr = _nodeNameMap.find(fromNodeName);
+        // the node handle was valid, so if this fails, something is wrong with graph.
+        assert(fromNodeIDItr != _nodeNameMap.end());
+        const NodeID fromNodeID = fromNodeIDItr->second;
+        for (const auto& conData : nodeData.connectionData)
+        {
+            const std::string& toNodeName = conData.nodeName;
+            const auto toNodeIDItr = _nodeNameMap.find(toNodeName);
+            assert(toNodeIDItr != _nodeNameMap.end());
+            const NodeID toNodeID = toNodeIDItr->second;
+            const auto outputAttrIDOpt =
+                fromNodeAttributeIndex(fromNodeID, conData.outputAttrIndex, AttributeDirection::Output);
+            if (not outputAttrIDOpt)
+            {
+                std::cerr << "[SceneGraph::buildFromGraphJson] Unable to find the output attribute ID " <<
+                             "corresponding to outputAttrIndex: " << conData.outputAttrIndex <<
+                                 ". Make sure to verify the indices in the json. Unable to connect attributes" << std::endl;
+                return false;
+            }
+            const auto inputAttrIDOpt =
+                fromNodeAttributeIndex(toNodeID, conData.inputAttrIndex, AttributeDirection::Input);
+            if (not inputAttrIDOpt)
+            {
+                std::cerr << "[SceneGraph::buildFromGraphJson] Unable to find the input attribute ID " <<
+                    "corresponding to inputAttrIndex: " << conData.inputAttrIndex <<
+                        ". Make sure to verify the indices in the json. Unable to connect attributes" << std::endl;
+                return false;
+            }
+            const AttrID outputAttrID = outputAttrIDOpt.value();
+            const AttrID inputAttrID = inputAttrIDOpt.value();
+            if (not connect(outputAttrID, inputAttrID))
+            {
+                std::cerr << "[SceneGraph::buildFromGraphJson] Failed to connect the attributes of node pair: "
+                << '[' << fromNodeName << ',' << toNodeName << ']' << std::endl;
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
 bool SceneGraph::deleteNode(const NodeID nodeID)
@@ -125,8 +228,6 @@ bool SceneGraph::deleteNode(const NodeID nodeID)
     _topoChanged = true;
 }
 
-/// Only asks question whether we can connect. NOT if a cycle will form.
-/// There must be a additional check for cycles.
 bool SceneGraph::canConnect(const AttrID outputAttr, const AttrID inputAttr) const
 {
     if (not isValidInputAttrID(inputAttr))
@@ -162,7 +263,52 @@ bool SceneGraph::canConnect(const AttrID outputAttr, const AttrID inputAttr) con
     }
     const auto fitr = outputAttrRec.findOutputSource(inputAttr);
     assert(fitr == outputAttrRec.downstream.end());
+    if (willFormCycle(outputAttr, inputAttr))
+    {
+        std::cerr << "[SceneGraph::connect] Unable to connect attributes because it will form a cycle" << std::endl;
+        return false;
+    }
     return true;
+}
+
+bool SceneGraph::willFormCycle(const AttrID outputAttr, const AttrID inputAttr) const
+{
+    const AttributeRecord& inputAttrRec = _attributeRecords.at(inputAttr);
+    const AttributeRecord& outputAttrRec = _attributeRecords.at(outputAttr);
+    assert(not inputAttrRec.isTombstone());
+    const NodeID inputOwnerID = inputAttrRec.owner;
+    const NodeID outputOwnerID = outputAttrRec.owner;
+    std::stack<NodeID> nodeStack;
+    std::set<NodeID> visitedSet;
+    // strange error on push. Use emplace instead
+    // Clangd: In template: constexpr variable '_Is_pointer_address_convertible<unsigned int, unsigned int>' must be initialized by a constant expression
+    nodeStack.emplace(inputOwnerID);
+    visitedSet.insert(inputOwnerID);
+    while (not nodeStack.empty())
+    {
+        const NodeID curNodeID = nodeStack.top();
+        nodeStack.pop();
+        if (curNodeID == outputOwnerID)
+            return true;
+
+        const NodeRecord& cnr = _nodeRecords.at(curNodeID);
+        assert(not cnr.isTombstone());
+        for (const AttrID curOutAttr : cnr.outputAttrIDs)
+        {
+            const AttributeRecord& attrRec = _attributeRecords.at(curOutAttr);
+            assert(attrRec.owner == curNodeID);
+            assert(attrRec.isOutputAttr());
+            for (const AttrID downstreamAttr : attrRec.downstream)
+            {
+                const AttributeRecord& downstreamAttrRec = _attributeRecords.at(downstreamAttr);
+                const auto [itr, success] =
+                    visitedSet.insert(downstreamAttrRec.owner);
+                if (success)
+                    nodeStack.push(downstreamAttrRec.owner);
+            }
+        }
+    }
+    return false;
 }
 
 bool SceneGraph::connect(const AttrID outputAttr, const AttrID inputAttr)
@@ -370,7 +516,7 @@ bool SceneGraph::setUnpluggedInputAttrData(const AttrID attrID, const std::span<
     return true;
 }
 
-std::optional<AttrID> SceneGraph::fromNodeAttributeIndex(const NodeID nodeID, const int attrIndex, AttributeDirection dir) const
+std::optional<AttrID> SceneGraph::fromNodeAttributeIndex(const NodeID nodeID, const int attrIndex, const AttributeDirection dir) const
 {
     if (not isValidNodeID(nodeID))
     {

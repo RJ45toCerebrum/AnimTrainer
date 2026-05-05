@@ -3,15 +3,19 @@
 
 #include "common.h"
 #include "NodeCompute.h"
+#include "GraphJson.h"
+
 #include <stdexcept>
 #include <memory>
 #include <unordered_map>
 #include <expected>
+#include <array>
 
 START_NAMESPACE(ATGraph)
 
 using NodePtr = std::unique_ptr<INodeCompute>;
 using GraphRef = std::optional<std::reference_wrapper<class SceneGraph>>;
+
 
 class NodeTypeNotFound : public std::runtime_error
 {
@@ -36,24 +40,20 @@ class SceneGraph final
 
     static constexpr int kInvalidNodeAddress = 0;
     static constexpr int kTimeNodeAddress = 1;
-
-    // only ever one instance of the graph at a time and only changes on scene load.
     static GraphPtr _instance;
     static std::unordered_map<NodeTypeID, NodePtr> _nodeTypeMap;
+    static std::unordered_map<std::string_view, NodeTypeID> _nodeNameMap;
 
     std::vector<NodeRecord> _nodeRecords;
-    // for initial implementation; _attributeRecords.size() should always equal _dataSlots.size()
-    // In other words, if a nodes input attribute becomes plugged, that node now gathers data from
-    // upstream data slot. Which makes that nodes input attr data slot a tombstone;
     std::vector<AttributeRecord> _attributeRecords;
     std::vector<DataSlot> _dataSlots;
 
     uint64_t _sceneHash = 0;
     bool _topoChanged = true;
-    // this should only ever change when there are structural changes to graph.
-    // create/delete, connect/disconnect
+    // this should only ever change when there are structural changes to graph. create/delete, connect/disconnect
     std::vector<NodeID> _evaluationOrder;
     // _nodeNames.size() should always equal _nodeRecords.size()
+    std::unordered_map<std::string_view, NodeID> _nameToNodeID;
     std::vector<std::string> _nodeNames;
 
 public:
@@ -62,10 +62,9 @@ public:
 
     // TODO: make command queue for methods that make graph structural changes.
     NodeHandle createNode(NodeTypeID typeID, std::string_view name);
+    /// build from empty graph.
+    bool buildFromGraphJson(const std::vector<JsonNodeGraphData>& graphData);
     bool deleteNode(NodeID nodeID);
-    /// Important Note on connection:
-    /// Cycle detection occurs during graph evaluation. This means a connection call can succeed but
-    /// forms a cycles which is invalid. An error log will occur and the connection will be removed.
     bool connect(AttrID outputAttr, AttrID inputAttr);
     bool disconnect(AttrID outputAttr, AttrID inputAttr);
 
@@ -73,6 +72,7 @@ public:
     NDESC bool topologyChanged() const;
 
     static void registerNodeType(NodePtr nodeCompute);
+    static std::optional<NodeTypeID> nodeTypeID(std::string_view nodeName);
     static SceneGraph& instance();
     static void destroy();
 

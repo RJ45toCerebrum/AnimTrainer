@@ -14,7 +14,8 @@ class AddNode final : public INodeCompute
     static constexpr std::string_view kRightAttrName = "Right";
 
 public:
-    static constexpr NodeTypeID kNodeTypeId = nodeTypeHash("AddNode");
+    static constexpr std::string_view kNodeName = "AddNode";
+    static constexpr NodeTypeID kNodeTypeId = nodeTypeHash(kNodeName);
 
     void compute(const NodeRecord& nodeRecord, DataStore& dStore) override
     {
@@ -45,6 +46,11 @@ public:
         static constexpr AttributeDescriptor kOutFloatAttrDesc("Out", AttributeDataType::Float, AttributeDirection::Output);
         static constexpr std::array<const AttributeDescriptor, 1> outputAttrs = {kOutFloatAttrDesc};
         return outputAttrs;
+    }
+
+    NDESC constexpr std::string_view nodeName() const override
+    {
+        return kNodeName;
     }
 
     NDESC constexpr NodeTypeID nodeTypeID() const override

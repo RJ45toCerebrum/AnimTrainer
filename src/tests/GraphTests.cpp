@@ -4,8 +4,10 @@
 #include <gtest/gtest.h>
 #include <print>
 #include <random>
+#include <fstream>
 
 #include "Graph.h"
+#include "GraphJson.h"
 #include "Nodes/Math/AddNode.h"
 
 using ATGraph::SceneGraph;
@@ -47,6 +49,7 @@ std::vector<float> generateRandomFloats(const size_t count)
 
     return result;
 }
+
 
 TEST(ExampleSuite, ExampleTest)
 {
@@ -117,27 +120,20 @@ TEST_F(GraphTestFixture, EdgeConnectsNodes)
     EXPECT_TRUE( asbDiff < std::numeric_limits<float>::epsilon() );
 }
 
-/* Next Test: Build Topo from JSON:
+TEST_F(GraphTestFixture, GraphJsonParsing)
 {
-    "Node0" :
-    {
-        "type": "AddNode",
-        "defaultInput": [3.0f, 7.0f],
-        "connect" :
-        [
-            {
-                "nodeName" : "Node1",
-                "inputAttrIndex" : 0
-            },
-            {
-                "nodeName" : "Node2",
-                "inputAttrIndex" : 1
-            }
-        ]
-    },
-    "Node1" : ...,
-    "Node2" : ...
-}
+    using ATGraph::JsonNodeGraphData;
+    using ATGraph::JsonNodeConnectionData;
 
- This will make testing substantially easier. Instead of manually connecting everything as in the above.
- */
+    const std::filesystem::path pathToTestJson = std::filesystem::path(PROJECT_ROOT_DIR) / "resources/graph_json_test.json";
+    EXPECT_TRUE(std::filesystem::exists(pathToTestJson));
+    std::ifstream jsonFileStream(pathToTestJson);
+    EXPECT_TRUE(jsonFileStream.is_open());
+    const std::string jsonContent((std::istreambuf_iterator<char>(jsonFileStream)),
+        std::istreambuf_iterator<char>());
+
+    std::vector<JsonNodeGraphData> nodes = ATGraph::parseGraphJSON(jsonContent);
+
+    const JsonNodeGraphData& gd = nodes[0];
+    EXPECT_TRUE(gd.nodeName == "Node0");
+}

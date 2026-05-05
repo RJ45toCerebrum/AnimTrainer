@@ -35,6 +35,7 @@ public:
     NDESC virtual constexpr std::span<const AttributeDescriptor> inputAttrSchema() const = 0;
     /// read inputAttrSchema summary. Same goes for outputAttrSchema.
     NDESC virtual constexpr std::span<const AttributeDescriptor> outputAttrSchema() const = 0;
+    NDESC virtual constexpr std::string_view nodeName() const = 0;
     NDESC virtual constexpr NodeTypeID nodeTypeID() const = 0;
     virtual ~INodeCompute() = default;
 };

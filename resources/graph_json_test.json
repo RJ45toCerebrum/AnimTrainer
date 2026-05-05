@@ -1,0 +1,48 @@
+[
+  {
+    "nodeName": "Node0",
+    "nodeTypeName": "AddNode",
+    "connectionData" :
+    [
+      {
+        "nodeName" : "Node1",
+        "outputAttrIndex": 0,
+        "inputAttrIndex" : 0
+      },
+      {
+        "nodeName" : "Node2",
+        "outputAttrIndex": 0,
+        "inputAttrIndex" : 1
+      }
+    ]
+  },
+  {
+    "nodeName": "Node1",
+    "nodeTypeName": "AddNode",
+    "connectionData" :
+    [
+      {
+        "nodeName" : "Node3",
+        "outputAttrIndex": 0,
+        "inputAttrIndex" : 0
+      }
+    ]
+  },
+  {
+    "nodeName": "Node2",
+    "nodeTypeName": "AddNode",
+    "connectionData" :
+    [
+      {
+        "nodeName" : "Node3",
+        "outputAttrIndex": 0,
+        "inputAttrIndex" : 1
+      }
+    ]
+  },
+  {
+    "nodeName": "Node3",
+    "nodeTypeName": "AddNode",
+    "connectionData" : []
+  }
+]
