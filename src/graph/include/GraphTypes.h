@@ -10,7 +10,6 @@
 #include <limits>
 #include <span>
 #include <vector>
-#include <string>
 #include <memory_resource>
 #include <format>
 
@@ -71,6 +70,7 @@ consteval AttributeDataType enumFromAttrType()
     throw std::exception("Type T not implemented yet");
 }
 
+/// TODO: finish
 inline int sizeOfFromAttrType(const AttributeDataType attrType)
 {
     if (attrType == AttributeDataType::Float)

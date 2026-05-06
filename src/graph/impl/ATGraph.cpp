@@ -12,7 +12,7 @@ START_NAMESPACE(ATGraph)
 
 SceneGraph::GraphPtr SceneGraph::_instance = nullptr;
 std::unordered_map<NodeTypeID, NodePtr> SceneGraph::_nodeTypeMap;
-std::unordered_map<std::string_view, NodeTypeID> SceneGraph::_nodeNameMap;
+std::unordered_map<std::string_view, NodeTypeID> SceneGraph::_nodeNameToTypeID;
 
 void SceneGraph::registerNodeType(NodePtr nodeCompute)
 {
@@ -31,13 +31,13 @@ void SceneGraph::registerNodeType(NodePtr nodeCompute)
         std::cerr << "[SceneGraph::registerNodeType] Failed to insert node." << std::endl;
         return;
     }
-    _nodeNameMap.insert({nodeName, nodeTypeID});
+    _nodeNameToTypeID.insert({nodeName, nodeTypeID});
 }
 
 std::optional<NodeTypeID> SceneGraph::nodeTypeID(const std::string_view nodeName)
 {
-    const auto fitr = _nodeNameMap.find(nodeName);
-    if (fitr == _nodeNameMap.end())
+    const auto fitr = _nodeNameToTypeID.find(nodeName);
+    if (fitr == _nodeNameToTypeID.end())
         return std::nullopt;
     return fitr->second;
 }
@@ -112,6 +112,7 @@ NodeHandle SceneGraph::createNode(const NodeTypeID typeID, const std::string_vie
         // NOTE how I intentionally mismatch the data slot version and lastSeenVersions
         // this is important as we want to compute to be called initially.
         newDataSlot.version = newNodeRecord.lastSeenVersions.back() + 1;
+        nodeCompute.initDataSlotDefaultValue(newDataSlot, iDesc);
         _dataSlots.push_back(std::move(newDataSlot));
         assert(_attributeRecords.size() == _dataSlots.size());
     }
@@ -129,6 +130,7 @@ NodeHandle SceneGraph::createNode(const NodeTypeID typeID, const std::string_vie
 
         DataSlot newDataSlot;
         newDataSlot.version = 1;
+        nodeCompute.initDataSlotDefaultValue(newDataSlot, outDesc);
         _dataSlots.push_back(std::move(newDataSlot));
         assert(_attributeRecords.size() == _dataSlots.size());
     }
@@ -141,6 +143,17 @@ NodeHandle SceneGraph::createNode(const NodeTypeID typeID, const std::string_vie
 
     _topoChanged = true;
     return {newNodeRecordID, typeID};
+}
+
+NodeHandle SceneGraph::getNodeHandle(const std::string_view nodeName) const
+{
+    const auto fitr = _nameToNodeID.find(nodeName);
+    if (fitr == _nameToNodeID.end())
+        return {};
+    const NodeID nodeID = fitr->second;
+    assert(isValidNodeID(nodeID));
+    const NodeRecord& record = _nodeRecords[nodeID];
+    return {nodeID, record.typeID};
 }
 
 // For initial implementation, we require the graph to be empty.
@@ -162,8 +175,8 @@ bool SceneGraph::buildFromGraphJson(const std::vector<JsonNodeGraphData>& graphD
     // first create all the nodes.
     for (const JsonNodeGraphData& nodeData : graphData)
     {
-        const auto fitr = _nodeNameMap.find(nodeData.nodeTypeName);
-        if (fitr == _nodeNameMap.end())
+        const auto fitr = _nodeNameToTypeID.find(nodeData.nodeTypeName);
+        if (fitr == _nodeNameToTypeID.end())
         {
             std::cerr << "[SceneGraph::buildFromGraphJson] Unable to convert node type name to node type ID"
                 << ". Was this node type registered (registerNodeType)?" << std::endl;
@@ -181,15 +194,15 @@ bool SceneGraph::buildFromGraphJson(const std::vector<JsonNodeGraphData>& graphD
     for (const JsonNodeGraphData& nodeData : graphData)
     {
         const std::string& fromNodeName = nodeData.nodeName;
-        const auto fromNodeIDItr = _nodeNameMap.find(fromNodeName);
+        const auto fromNodeIDItr = _nameToNodeID.find(fromNodeName);
         // the node handle was valid, so if this fails, something is wrong with graph.
-        assert(fromNodeIDItr != _nodeNameMap.end());
+        assert(fromNodeIDItr != _nameToNodeID.end());
         const NodeID fromNodeID = fromNodeIDItr->second;
         for (const auto& conData : nodeData.connectionData)
         {
             const std::string& toNodeName = conData.nodeName;
-            const auto toNodeIDItr = _nodeNameMap.find(toNodeName);
-            assert(toNodeIDItr != _nodeNameMap.end());
+            const auto toNodeIDItr = _nameToNodeID.find(toNodeName);
+            assert(toNodeIDItr != _nameToNodeID.end());
             const NodeID toNodeID = toNodeIDItr->second;
             const auto outputAttrIDOpt =
                 fromNodeAttributeIndex(fromNodeID, conData.outputAttrIndex, AttributeDirection::Output);

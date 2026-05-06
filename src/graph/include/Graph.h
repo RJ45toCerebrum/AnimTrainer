@@ -42,7 +42,7 @@ class SceneGraph final
     static constexpr int kTimeNodeAddress = 1;
     static GraphPtr _instance;
     static std::unordered_map<NodeTypeID, NodePtr> _nodeTypeMap;
-    static std::unordered_map<std::string_view, NodeTypeID> _nodeNameMap;
+    static std::unordered_map<std::string_view, NodeTypeID> _nodeNameToTypeID;
 
     std::vector<NodeRecord> _nodeRecords;
     std::vector<AttributeRecord> _attributeRecords;
@@ -62,6 +62,7 @@ public:
 
     // TODO: make command queue for methods that make graph structural changes.
     NodeHandle createNode(NodeTypeID typeID, std::string_view name);
+    NDESC NodeHandle getNodeHandle(std::string_view nodeName) const;
     /// build from empty graph.
     bool buildFromGraphJson(const std::vector<JsonNodeGraphData>& graphData);
     bool deleteNode(NodeID nodeID);
@@ -163,13 +164,24 @@ public:
     std::span<const T> getData(const AttrID attrID) const
     {
         const SceneGraph& gr = SceneGraph::instance();
+        if (not gr.isValidAttrID(attrID))
+            return std::span<const T>{};
+
         // TODO: should make the graph getData method a template...
         const AttributeRecord& arec = gr._attributeRecords[attrID];
         assert(arec.owner == _nodeID);
-        constexpr AttributeDataType attrType = enumFromAttrType<T>();
-        assert(arec.type == attrType);
+        assert(arec.type == enumFromAttrType<T>());
         const std::span<const std::byte> byteData = gr.getData(attrID);
         return DataSlot::convert<T>(byteData);
+    }
+
+    template<AttributeTypeConcept T>
+    std::span<const T> getOutputAttrData(const int attrIndex) const
+    {
+        const auto outputAttrOpt = fromNodeAttributeIndex(attrIndex, AttributeDirection::Output);
+        if (not outputAttrOpt)
+            return std::span<const T>{};
+        return getData<T>(outputAttrOpt.value());
     }
 
     template<AttributeTypeConcept T>

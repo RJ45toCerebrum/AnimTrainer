@@ -33,6 +33,13 @@ public:
         dStore.writeSingle<float>(outputAttrID, result);
     }
 
+    void initDataSlotDefaultValue(DataSlot& dataSlot, const AttributeDescriptor& attrDescriptor) const override
+    {
+        static constexpr float defaultValue = 0.0f;
+        static constexpr std::span<const float> defaultData = std::span(&defaultValue, 1);
+        dataSlot.writeAsSpan(defaultData);
+    }
+
     NDESC constexpr std::span<const AttributeDescriptor> inputAttrSchema() const override
     {
         static constexpr AttributeDescriptor kLeftFloatAttrDesc(kLeftAttrName, AttributeDataType::Float, AttributeDirection::Input);
