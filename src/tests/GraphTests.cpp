@@ -21,7 +21,7 @@ using ATGraph::AttributeDataType;
 using ATGraph::JsonNodeGraphData;
 using ATGraph::JsonNodeConnectionData;
 
-
+// any logic that requires inspecting the internal state of the graph must exist directly in this class.
 class GraphTestFixture : public ::testing::Test
 {
 public:
@@ -56,6 +56,7 @@ protected:
         }
         return true;
     }
+
     NDESC bool AllNodesNoCompute() const
     {
         const SceneGraph& graphRef = _graphInstance.value();
@@ -67,6 +68,13 @@ protected:
                 return false;
         }
         return true;
+    }
+
+    NDESC std::size_t getDataSlotMemSizeForAttribute(const AttrID attrID) const
+    {
+        const SceneGraph& graphRef = _graphInstance.value();
+        const DataSlot& ds = graphRef._dataSlots.at(attrID);
+        return ds.bytes.size();
     }
 };
 
@@ -122,7 +130,7 @@ TEST_F(GraphTestFixture, CreateNodeTest)
     EXPECT_TRUE(newNodeHandle.setUnpluggedInputAttrData(rightFloatAttr, 2.0f));
 }
 
-TEST_F(GraphTestFixture, EdgeConnectsNodes)
+TEST_F(GraphTestFixture, NodeConnectionTest)
 {
     EXPECT_TRUE(_graphInstance.has_value());
     SceneGraph& graphRef = _graphInstance.value();
@@ -147,6 +155,8 @@ TEST_F(GraphTestFixture, EdgeConnectsNodes)
 
     EXPECT_TRUE(graphRef.connect(outputAttrID, inputAttrID));
     EXPECT_TRUE(graphRef.topologyChanged());
+    // after making a connection, we expect the memory in the input data slot should be of size 0
+    EXPECT_TRUE(getDataSlotMemSizeForAttribute(inputAttrID) == 0);
 
     const auto resultAttrIDOpt = nh1.fromNodeAttributeIndex(0, ATGraph::AttributeDirection::Output);
     EXPECT_TRUE(resultAttrIDOpt.has_value());
@@ -159,7 +169,12 @@ TEST_F(GraphTestFixture, EdgeConnectsNodes)
     const std::span<const float> data = nh1.getData<float>(resultAttrID);
     EXPECT_TRUE(data.size() == 1);
     const float asbDiff = std::abs(data[0] - expectedResult);
-    EXPECT_TRUE( asbDiff < std::numeric_limits<float>::epsilon() );
+    EXPECT_TRUE( asbDiff <= std::numeric_limits<float>::epsilon() );
+
+    // test disconnection...
+    EXPECT_TRUE(graphRef.disconnect(outputAttrID, inputAttrID));
+    EXPECT_TRUE(graphRef.topologyChanged());
+    EXPECT_TRUE(getDataSlotMemSizeForAttribute(inputAttrID) == sizeof(float));
 }
 
 TEST_F(GraphTestFixture, GraphJsonParsing)

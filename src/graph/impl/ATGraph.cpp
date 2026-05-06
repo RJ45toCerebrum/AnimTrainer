@@ -145,6 +145,12 @@ NodeHandle SceneGraph::createNode(const NodeTypeID typeID, const std::string_vie
     return {newNodeRecordID, typeID};
 }
 
+bool SceneGraph::deleteNode(const NodeID nodeID)
+{
+    throw std::logic_error("[SceneGraph::deleteNode] Node ID not implemented");
+    _topoChanged = true;
+}
+
 NodeHandle SceneGraph::getNodeHandle(const std::string_view nodeName) const
 {
     const auto fitr = _nameToNodeID.find(nodeName);
@@ -233,12 +239,6 @@ bool SceneGraph::buildFromGraphJson(const std::vector<JsonNodeGraphData>& graphD
         }
     }
     return true;
-}
-
-bool SceneGraph::deleteNode(const NodeID nodeID)
-{
-    throw std::logic_error("[SceneGraph::deleteNode] Node ID not implemented");
-    _topoChanged = true;
 }
 
 bool SceneGraph::canConnect(const AttrID outputAttr, const AttrID inputAttr) const
@@ -378,21 +378,23 @@ bool SceneGraph::disconnect(const AttrID outputAttr, const AttrID inputAttr)
 
     inputAttrRec.upstream = kInvalidAttr;
     outputAttrRec.downstream.erase(fitr);
+
+    NodeRecord& inputNodeRecord = _nodeRecords.at(inputAttrRec.owner);
+    const int attrIndex = inputNodeRecord.getAttrIndex(inputAttr);
+    assert(attrIndex > -1);
+    DataSlot& currentAttrData = _dataSlots.at(inputAttr);
+
+    // realloc mem claimed in connect call.
+    const auto inputNodeFitr = _nodeTypeMap.find(inputNodeRecord.typeID);
+    assert(inputNodeFitr != _nodeTypeMap.end());
+    const INodeCompute& nodeCompute = *inputNodeFitr->second;
+    const auto inputSchema = nodeCompute.inputAttrSchema();
+    nodeCompute.initDataSlotDefaultValue(currentAttrData, inputSchema[attrIndex]);
+    // this ensures compute all happen for all downstream nodes.
+    inputNodeRecord.lastSeenVersions[attrIndex] = currentAttrData.version + 1;
+
     _topoChanged = true;
     return true;
-}
-
-void SceneGraph::updateNodeAttrVersion(NodeRecord& nodeRecord) const
-{
-    for (int attrIndex = 0; attrIndex < nodeRecord.inputAttrIDs.size(); ++attrIndex)
-    {
-        const AttrID aid = nodeRecord.inputAttrIDs[attrIndex];
-        const AttributeRecord& ar = _attributeRecords[aid];
-        if (ar.upstream == kInvalidAttr)
-            nodeRecord.lastSeenVersions[attrIndex] = _dataSlots[aid].version;
-        else
-            nodeRecord.lastSeenVersions[attrIndex] =  _dataSlots[ar.upstream].version;
-    }
 }
 
 void SceneGraph::evaluate()
@@ -578,6 +580,19 @@ NDESC uint64_t SceneGraph::getAttrComputeCode(const AttrID aid) const
     assert(std::ranges::any_of(upstreamAttrRecord.downstream, matchUpIdToDownID));
     const auto& [_, version] = _dataSlots[uid];
     return version;
+}
+
+void SceneGraph::updateNodeAttrVersion(NodeRecord& nodeRecord) const
+{
+    for (int attrIndex = 0; attrIndex < nodeRecord.inputAttrIDs.size(); ++attrIndex)
+    {
+        const AttrID aid = nodeRecord.inputAttrIDs[attrIndex];
+        const AttributeRecord& ar = _attributeRecords[aid];
+        if (ar.upstream == kInvalidAttr)
+            nodeRecord.lastSeenVersions[attrIndex] = _dataSlots[aid].version;
+        else
+            nodeRecord.lastSeenVersions[attrIndex] =  _dataSlots[ar.upstream].version;
+    }
 }
 
 bool SceneGraph::nodeNeedsCompute(const NodeRecord& node) const
