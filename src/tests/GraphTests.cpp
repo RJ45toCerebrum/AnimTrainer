@@ -166,7 +166,7 @@ TEST_F(GraphTestFixture, NodeConnectionTest)
 
     EXPECT_TRUE(not graphRef.topologyChanged());
 
-    const std::span<const float> data = nh1.getData<float>(resultAttrID);
+    const auto data = nh1.getData<float>(resultAttrID);
     EXPECT_TRUE(data.size() == 1);
     const float asbDiff = std::abs(data[0] - expectedResult);
     EXPECT_TRUE( asbDiff <= std::numeric_limits<float>::epsilon() );
@@ -175,6 +175,8 @@ TEST_F(GraphTestFixture, NodeConnectionTest)
     EXPECT_TRUE(graphRef.disconnect(outputAttrID, inputAttrID));
     EXPECT_TRUE(graphRef.topologyChanged());
     EXPECT_TRUE(getDataSlotMemSizeForAttribute(inputAttrID) == sizeof(float));
+
+    graphRef.evaluate();
 }
 
 TEST_F(GraphTestFixture, GraphJsonParsing)

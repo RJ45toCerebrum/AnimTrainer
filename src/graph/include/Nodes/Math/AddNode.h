@@ -55,6 +55,11 @@ public:
         return outputAttrs;
     }
 
+    NDESC bool alwaysCompute() const override
+    {
+        return false;
+    }
+
     NDESC constexpr std::string_view nodeName() const override
     {
         return kNodeName;

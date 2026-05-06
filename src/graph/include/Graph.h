@@ -125,20 +125,6 @@ public:
         return gr.fromNodeAttributeIndex(_nodeID, attrIndex, dir);
     }
 
-    // std::array to avoid heap; this will fail if template param N is not the actual attr count for this node.
-    template<int N>
-    bool inputAttrInfo(std::array<AttrInfo,N>& attrInfo) const
-    {
-        const SceneGraph& graphRef = SceneGraph::instance();
-        return graphRef.getAttrInfo(_nodeID, AttributeDirection::Input, attrInfo);
-    }
-    template<int N>
-    void outputAttrInfo(std::array<AttrInfo,N>& attrInfo) const
-    {
-        const SceneGraph& graphRef = SceneGraph::instance();
-        return graphRef.getAttrInfo(_nodeID, AttributeDirection::Output, attrInfo);
-    }
-
     NDESC std::vector<AttrInfo> inputAttrInfo() const
     {
         const SceneGraph& graphRef = SceneGraph::instance();

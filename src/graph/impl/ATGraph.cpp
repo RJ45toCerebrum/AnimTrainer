@@ -116,6 +116,7 @@ NodeHandle SceneGraph::createNode(const NodeTypeID typeID, const std::string_vie
         _dataSlots.push_back(std::move(newDataSlot));
         assert(_attributeRecords.size() == _dataSlots.size());
     }
+
     const std::span<const AttributeDescriptor> outputAttrDescriptors = nodeCompute.outputAttrSchema();
     for (const AttributeDescriptor& outDesc : outputAttrDescriptors)
     {
@@ -414,9 +415,9 @@ void SceneGraph::evaluate()
         const NodeTypeID nodeType = nr.typeID;
         const auto fitr = _nodeTypeMap.find(nodeType);
         assert(fitr != _nodeTypeMap.end());
-        if (nodeNeedsCompute(nr))
+        INodeCompute& nodeCompute = *fitr->second;
+        if (nodeCompute.alwaysCompute() or nodeNeedsCompute(nr))
         {
-            INodeCompute& nodeCompute = *fitr->second;
             nodeCompute.compute(nr, nodeDataStore);
             updateNodeAttrVersion(nr);
         }

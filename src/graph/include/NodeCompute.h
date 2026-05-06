@@ -27,6 +27,8 @@ public:
     /// The graph passes in `this` nodes `record` and the graphs
     /// data store where the node will read and write its input to...
     virtual void compute(const NodeRecord& nodeRecord, DataStore& dStore) = 0;
+    // Some nodes need compute regardless of input (such as nodes with 0 inputs like TimeNode);
+    NDESC virtual bool alwaysCompute() const = 0;
     virtual void initDataSlotDefaultValue(DataSlot& dataSlot, const AttributeDescriptor& attrDescriptor) const = 0;
     /// NOTE: the order you return these is important. When a node compute is called
     /// A node can identify specific attributes with an index.

@@ -13,6 +13,9 @@
 #include <memory_resource>
 #include <format>
 
+#include "ATMath.h"
+#include "scene/include/ATAttribute.h"
+
 START_NAMESPACE(ATGraph)
 
 using NodeID = uint32_t;
@@ -35,23 +38,27 @@ enum class AttributeDirection : uint8_t
 enum class AttributeDataType : uint8_t
 {
     Float,
-    Vec3,
+    Int,
+    Vec,
     Transform
 };
 
+// TODO: finish
 consteval std::string_view attrDataTypeStr(const AttributeDataType type)
 {
     static constexpr std::string_view kInvalidDataTypeStr = "InvalidDataType";
     static constexpr std::string_view kFloatAttrStr = "float";
-    static constexpr std::string_view kVec3AttrStr = "vec3";
+    static constexpr std::string_view kIntAttrStr = "int";
+    static constexpr std::string_view kVecAttrStr = "vec";
     static constexpr std::string_view kTransformStr = "transform";
-    // TODO: finish
     switch (type)
     {
         case AttributeDataType::Float:
             return kFloatAttrStr;
-        case AttributeDataType::Vec3:
-            return kVec3AttrStr;
+        case AttributeDataType::Int:
+            return kIntAttrStr;
+        case AttributeDataType::Vec:
+            return kVecAttrStr;
         case AttributeDataType::Transform:
             return kTransformStr;
     }
@@ -64,19 +71,10 @@ consteval AttributeDataType enumFromAttrType()
 {
     if constexpr (std::is_same_v<T, float>)
         return AttributeDataType::Float;
-    else if constexpr (std::is_same_v<T, glm::vec3>)
-        return AttributeDataType::Vec3;
-
-    throw std::exception("Type T not implemented yet");
-}
-
-/// TODO: finish
-inline int sizeOfFromAttrType(const AttributeDataType attrType)
-{
-    if (attrType == AttributeDataType::Float)
-        return sizeof(float);
-    if (attrType == AttributeDataType::Vec3)
-        return sizeof(glm::vec3);
+    else if constexpr (std::is_same_v<T, glm::vec2> or std::is_same_v<T, glm::vec3> or std::is_same_v<T, glm::vec4>)
+        return AttributeDataType::Vec;
+    else if constexpr (std::is_same_v<T, ATMath::Transform>)
+        return AttributeDataType::Transform;
 
     throw std::exception("Type T not implemented yet");
 }
@@ -84,7 +82,8 @@ inline int sizeOfFromAttrType(const AttributeDataType attrType)
 /// TODO: finish
 template<typename T>
 concept AttributeTypeConcept =
-    std::same_as<T, float> || std::same_as<T, glm::vec3>;
+    std::same_as<T, float> || std::same_as<T, glm::vec2> || std::same_as<T, glm::vec3> ||
+    std::same_as<T, glm::vec4>;
 
 /// Attributes are a fundamental component to the graph.
 /// Every node has input attributes and output attributes.
@@ -215,6 +214,7 @@ struct DataSlot final
         assert(reinterpret_cast<uintptr_t>(bytes.data()) % alignof(T) == 0
         && "DataSlot buffer insufficiently aligned for type T");
         const T* rawData = reinterpret_cast<const T*>(bytes.data());
+        assert(bytes.size() % sizeof(T) == 0);
         return {rawData, bytes.size() / sizeof(T)};
     }
 
@@ -228,6 +228,7 @@ struct DataSlot final
     {
         const auto* begin = reinterpret_cast<const std::byte*>(values.data());
         bytes.assign(begin, begin + values.size_bytes());
+        assert(bytes.size() % sizeof(T) == 0);
         ++version;
     }
 
@@ -250,6 +251,7 @@ struct DataSlot final
         const T* rawData = reinterpret_cast<const T*>(data.data());
         assert(reinterpret_cast<uintptr_t>(rawData) % alignof(T) == 0
             && "data buffer insufficiently aligned for type T");
+        assert(data.size_bytes() % sizeof(T) == 0);
         return {rawData, data.size_bytes() / sizeof(T)};
     }
 };
