@@ -10,6 +10,7 @@
 #include "GraphJson.h"
 #include "Nodes/Math/AddNode.h"
 
+START_NAMESPACE(ATGraph)
 
 using ATGraph::SceneGraph;
 using ATGraph::NodeHandle;
@@ -41,7 +42,34 @@ protected:
         std::println("Stopping graph instance...");
         SceneGraph::destroy();
     }
+
+    NDESC bool AllNodesNeedCompute() const
+    {
+        const SceneGraph& graphRef = _graphInstance.value();
+        for (const NodeRecord& nr : graphRef._nodeRecords)
+        {
+            // skip tombstones
+            if (nr.typeID == kInvalidNodeTypeID)
+                continue;
+            if (not graphRef.nodeNeedsCompute(nr))
+                return false;
+        }
+        return true;
+    }
+    NDESC bool AllNodesNoCompute() const
+    {
+        const SceneGraph& graphRef = _graphInstance.value();
+        for (const NodeRecord& nr : graphRef._nodeRecords)
+        {
+            if (nr.typeID == kInvalidNodeTypeID)
+                continue;
+            if (graphRef.nodeNeedsCompute(nr))
+                return false;
+        }
+        return true;
+    }
 };
+
 
 std::vector<float> generateRandomFloats(const size_t count)
 {
@@ -55,6 +83,17 @@ std::vector<float> generateRandomFloats(const size_t count)
         result.push_back(dis(gen));
 
     return result;
+}
+
+std::vector<JsonNodeGraphData> getDefaultGraphJson()
+{
+    const std::filesystem::path pathToTestJson = std::filesystem::path(PROJECT_ROOT_DIR) / "resources/graph_json_test.json";
+    EXPECT_TRUE(std::filesystem::exists(pathToTestJson));
+    std::ifstream jsonFileStream(pathToTestJson);
+    EXPECT_TRUE(jsonFileStream.is_open());
+    const std::string jsonContent((std::istreambuf_iterator<char>(jsonFileStream)),
+        std::istreambuf_iterator<char>());
+    return ATGraph::parseGraphJSON(jsonContent);
 }
 
 
@@ -125,16 +164,7 @@ TEST_F(GraphTestFixture, EdgeConnectsNodes)
 
 TEST_F(GraphTestFixture, GraphJsonParsing)
 {
-
-    const std::filesystem::path pathToTestJson = std::filesystem::path(PROJECT_ROOT_DIR) / "resources/graph_json_test.json";
-    EXPECT_TRUE(std::filesystem::exists(pathToTestJson));
-    std::ifstream jsonFileStream(pathToTestJson);
-    EXPECT_TRUE(jsonFileStream.is_open());
-    const std::string jsonContent((std::istreambuf_iterator<char>(jsonFileStream)),
-        std::istreambuf_iterator<char>());
-
-    std::vector<JsonNodeGraphData> nodes = ATGraph::parseGraphJSON(jsonContent);
-
+    std::vector<JsonNodeGraphData> nodes = getDefaultGraphJson();
     const JsonNodeGraphData& gd = nodes[0];
     EXPECT_TRUE(gd.nodeName == "Node0");
 }
@@ -143,13 +173,7 @@ TEST_F(GraphTestFixture, JsonToGraph)
 {
     EXPECT_TRUE(_graphInstance.has_value());
 
-    const std::filesystem::path pathToTestJson = std::filesystem::path(PROJECT_ROOT_DIR) / "resources/graph_json_test.json";
-    EXPECT_TRUE(std::filesystem::exists(pathToTestJson));
-    std::ifstream jsonFileStream(pathToTestJson);
-    EXPECT_TRUE(jsonFileStream.is_open());
-    const std::string jsonContent((std::istreambuf_iterator<char>(jsonFileStream)),
-        std::istreambuf_iterator<char>());
-    const std::vector<JsonNodeGraphData> jsonNodes = ATGraph::parseGraphJSON(jsonContent);
+    const std::vector<JsonNodeGraphData> jsonNodes = getDefaultGraphJson();
 
     SceneGraph& graphRef = _graphInstance.value();
     EXPECT_TRUE(graphRef.buildFromGraphJson(jsonNodes));
@@ -166,22 +190,34 @@ TEST_F(GraphTestFixture, JsonToGraph)
 
     const auto rawData = tailNodeHandle.getOutputAttrData<float>(0);
     EXPECT_TRUE(rawData.size() == 1);
-    float result = rawData[0];
+    const float result = rawData[0];
     const float expectedResult = 2 * std::accumulate(rfs.begin(), rfs.end(), 0.0f);
     EXPECT_TRUE(std::abs(result - expectedResult) < 10 * std::numeric_limits<float>::epsilon());
+}
+
+// On the second evaluation, no nodes should need compute
+TEST_F(GraphTestFixture, NeedComputeTest)
+{
+    const std::vector<JsonNodeGraphData> jsonNodes = getDefaultGraphJson();
+    SceneGraph& graphRef = _graphInstance.value();
+    EXPECT_TRUE(graphRef.buildFromGraphJson(jsonNodes));
+
+    const std::vector<float> rfs = generateRandomFloats(2);
+    NodeHandle rootNodeHandle = graphRef.getNodeHandle("Node0");
+    EXPECT_TRUE(rootNodeHandle.isValid());
+    EXPECT_TRUE(rootNodeHandle.setUnpluggedInputByIndex(0, rfs[0]));
+    EXPECT_TRUE(rootNodeHandle.setUnpluggedInputByIndex(1, rfs[1]));
+
+    EXPECT_TRUE(AllNodesNeedCompute());
+    graphRef.evaluate();
+    EXPECT_TRUE(AllNodesNoCompute());
 }
 
 TEST_F(GraphTestFixture, DetectCycle)
 {
     EXPECT_TRUE(_graphInstance.has_value());
 
-    const std::filesystem::path pathToTestJson = std::filesystem::path(PROJECT_ROOT_DIR) / "resources/graph_json_test.json";
-    EXPECT_TRUE(std::filesystem::exists(pathToTestJson));
-    std::ifstream jsonFileStream(pathToTestJson);
-    EXPECT_TRUE(jsonFileStream.is_open());
-    const std::string jsonContent((std::istreambuf_iterator<char>(jsonFileStream)),
-        std::istreambuf_iterator<char>());
-    const std::vector<JsonNodeGraphData> jsonNodes = ATGraph::parseGraphJSON(jsonContent);
+    const std::vector<JsonNodeGraphData> jsonNodes = getDefaultGraphJson();
 
     SceneGraph& graphRef = _graphInstance.value();
     EXPECT_TRUE(graphRef.buildFromGraphJson(jsonNodes));
@@ -201,3 +237,5 @@ TEST_F(GraphTestFixture, DetectCycle)
 
     EXPECT_FALSE(graphRef.connect(outputAttrID, inputAttrID));
 }
+
+END_NAMESPACE

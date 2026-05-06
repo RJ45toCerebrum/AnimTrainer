@@ -291,6 +291,9 @@ bool SceneGraph::willFormCycle(const AttrID outputAttr, const AttrID inputAttr) 
     assert(not inputAttrRec.isTombstone());
     const NodeID inputOwnerID = inputAttrRec.owner;
     const NodeID outputOwnerID = outputAttrRec.owner;
+    if (inputOwnerID == outputOwnerID)
+        return true;
+
     std::stack<NodeID> nodeStack;
     std::set<NodeID> visitedSet;
     // strange error on push. Use emplace instead
@@ -379,6 +382,19 @@ bool SceneGraph::disconnect(const AttrID outputAttr, const AttrID inputAttr)
     return true;
 }
 
+void SceneGraph::updateNodeAttrVersion(NodeRecord& nodeRecord) const
+{
+    for (int attrIndex = 0; attrIndex < nodeRecord.inputAttrIDs.size(); ++attrIndex)
+    {
+        const AttrID aid = nodeRecord.inputAttrIDs[attrIndex];
+        const AttributeRecord& ar = _attributeRecords[aid];
+        if (ar.upstream == kInvalidAttr)
+            nodeRecord.lastSeenVersions[attrIndex] = _dataSlots[aid].version;
+        else
+            nodeRecord.lastSeenVersions[attrIndex] =  _dataSlots[ar.upstream].version;
+    }
+}
+
 void SceneGraph::evaluate()
 {
     // TODO: 1) perform any changes necessary from command queue
@@ -391,7 +407,7 @@ void SceneGraph::evaluate()
     DataStore nodeDataStore(_attributeRecords, _dataSlots);
     for (const NodeID nodeID : _evaluationOrder)
     {
-        const NodeRecord& nr = _nodeRecords[nodeID];
+        NodeRecord& nr = _nodeRecords[nodeID];
         assert(not nr.isTombstone());
         const NodeTypeID nodeType = nr.typeID;
         const auto fitr = _nodeTypeMap.find(nodeType);
@@ -400,6 +416,7 @@ void SceneGraph::evaluate()
         {
             INodeCompute& nodeCompute = *fitr->second;
             nodeCompute.compute(nr, nodeDataStore);
+            updateNodeAttrVersion(nr);
         }
     }
 }

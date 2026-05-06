@@ -17,22 +17,11 @@ using NodePtr = std::unique_ptr<INodeCompute>;
 using GraphRef = std::optional<std::reference_wrapper<class SceneGraph>>;
 
 
-class NodeTypeNotFound : public std::runtime_error
-{
-    NodeTypeID _invalidTypeId;
-public:
-    explicit NodeTypeNotFound(const NodeTypeID invalidTypeId) :
-        std::runtime_error("Node Factory not found"), _invalidTypeId(invalidTypeId)
-    {}
-};
-
-
 class SceneGraph final
 {
     // NodeHandle should never reach directly into graph types;
     // ONLY call private methods.
     friend class NodeHandle;
-    // TODO: figure out why this is not working as expected with gtest fixture.
     friend class GraphTestFixture;
 
     using GraphPtr = std::unique_ptr<SceneGraph>;
@@ -91,6 +80,7 @@ private:
     NDESC bool nodeNeedsCompute(const NodeRecord& node) const;
     NDESC bool canConnect(AttrID outputAttr, AttrID inputAttr) const;
     NDESC bool willFormCycle(AttrID outputAttr, AttrID inputAttr) const;
+    void updateNodeAttrVersion(NodeRecord& nodeRecord) const;
     void rebuildEvaluationOrder();
 
     NDESC std::span<const std::byte> getData(AttrID attrID) const;
