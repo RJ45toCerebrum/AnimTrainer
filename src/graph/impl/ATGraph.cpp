@@ -256,6 +256,10 @@ bool SceneGraph::canConnect(const AttrID outputAttr, const AttrID inputAttr) con
     }
     const AttributeRecord& inputAttrRec = _attributeRecords[inputAttr];
     const AttributeRecord& outputAttrRec = _attributeRecords[outputAttr];
+    // TODO: instead of demanding the types be identical, I need to make types coercible.
+    // I could make conversion nodes, but conversion nodes would liter the graph and make it very unreadable.
+    // I need to define a function isTypeCoercibleTo() or something like that.
+    // For now, I go with exact type approach because I think that reduces bugs at this early phase.
     if (inputAttrRec.type != outputAttrRec.type)
     {
         std::cerr << "[SceneGraph::connect] The attributes being connected have incompatible types" << std::endl;

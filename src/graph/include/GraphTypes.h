@@ -71,6 +71,8 @@ consteval AttributeDataType enumFromAttrType()
 {
     if constexpr (std::is_same_v<T, float>)
         return AttributeDataType::Float;
+    if constexpr (std::is_same_v<T, int>)
+        return AttributeDataType::Int;
     else if constexpr (std::is_same_v<T, glm::vec2> or std::is_same_v<T, glm::vec3> or std::is_same_v<T, glm::vec4>)
         return AttributeDataType::Vec;
     else if constexpr (std::is_same_v<T, ATMath::Transform>)
@@ -82,8 +84,8 @@ consteval AttributeDataType enumFromAttrType()
 /// TODO: finish
 template<typename T>
 concept AttributeTypeConcept =
-    std::same_as<T, float> || std::same_as<T, glm::vec2> || std::same_as<T, glm::vec3> ||
-    std::same_as<T, glm::vec4>;
+    std::same_as<T, float> || std::same_as<T, int> ||
+    std::same_as<T, glm::vec2> || std::same_as<T, glm::vec3> || std::same_as<T, glm::vec4>;
 
 /// Attributes are a fundamental component to the graph.
 /// Every node has input attributes and output attributes.

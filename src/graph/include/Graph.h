@@ -146,6 +146,7 @@ public:
         // TODO: should make the graph getData method a template...
         const AttributeRecord& arec = gr._attributeRecords[attrID];
         assert(arec.owner == _nodeID);
+        // TODO: instead of demanding the types be identical, I need to make types coercible.
         assert(arec.type == enumFromAttrType<T>());
         const std::span<const std::byte> byteData = gr.getData(attrID);
         return DataSlot::convert<T>(byteData);
