@@ -8,27 +8,36 @@ static constexpr std::string_view kRadiansAttrName("Radians");
 
 void SinCosOp::compute(const NodeRecord& nodeRecord, DataStore& dStore)
 {
-    const AttrID inputAttrID = nodeRecord.inputAttrIDs.at(0);
-    const auto radians = dStore.readSingle<float>(inputAttrID);
+    const AttrID radiansInputAttrID = nodeRecord.inputAttrIDs.at(0);
     const AttrID sinOutputAttrID = nodeRecord.outputAttrIDs.at(0);
     const AttrID cosOutputAttrID = nodeRecord.outputAttrIDs.at(1);
-    dStore.writeSingle<float>(sinOutputAttrID, glm::sin(radians));
-    dStore.writeSingle<float>(cosOutputAttrID, glm::cos(radians));
+
+    const auto radiansInputBuffer = dStore.read<float>(radiansInputAttrID);
+    const std::size_t elementCount = radiansInputBuffer.size();
+
+    auto sinBuffer = dStore.prepareWrite<float>(sinOutputAttrID, elementCount);
+    auto cosBuffer = dStore.prepareWrite<float>(cosOutputAttrID, elementCount);
+    for (int i = 0; i < elementCount; ++i)
+    {
+        const float radians = radiansInputBuffer[i];
+        sinBuffer[i] = glm::sin(radians);
+        cosBuffer[i] = glm::cos(radians);
+    }
 }
 
 void SinCosOp::initDataSlotDefaultValue(DataSlot& dataSlot, const AttributeDescriptor& attrDescriptor) const
 {
     constexpr float defaultValue = 0.f;
-    const std::span inputAttrData(&defaultValue, 1);
-    dataSlot.writeAsSpan(inputAttrData);
+    constexpr std::array defaultBuffer = {defaultValue};
+    dataSlot.writeAsSpan<float>(defaultBuffer);
 }
 
 constexpr std::span<const AttributeDescriptor> SinCosOp::inputAttrSchema() const
 {
     static constexpr AttributeDescriptor kRadiansAttrDescriptor(
         kRadiansAttrName, AttributeDataType::Float, AttributeDirection::Input);
-    static constexpr std::array inputAttrs = {kRadiansAttrDescriptor};
-    return inputAttrs;
+    static constexpr std::array kInputAttrs = {kRadiansAttrDescriptor};
+    return kInputAttrs;
 }
 
 constexpr std::span<const AttributeDescriptor> SinCosOp::outputAttrSchema() const

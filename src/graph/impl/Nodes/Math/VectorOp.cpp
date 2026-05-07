@@ -1,5 +1,6 @@
 // Created by Tyler on 5/6/2026.
 #include "Nodes/Math/VectorOp.h"
+#include "ATMath.h"
 
 #include <glm/vec2.hpp>
 #include <iostream>
@@ -12,11 +13,6 @@ static constexpr std::string_view kLeftOperandAttrName = "LeftOperand";
 static constexpr std::string_view kRightOperandAttrName = "RightOperand";
 static constexpr std::string_view kVectorOpOutputAttrName = "VectorOpOutput";
 
-template<glm::length_t L, typename T, glm::qualifier Q>
-T angleBetween(glm::vec<L, T, Q> a, glm::vec<L, T, Q> b)
-{
-    return glm::acos(glm::dot(glm::normalize(a), glm::normalize(b)));
-}
 
 void VectorOp::compute(const NodeRecord& nodeRecord, DataStore& dStore)
 {
@@ -124,19 +120,19 @@ void VectorOp::compute(const NodeRecord& nodeRecord, DataStore& dStore)
         {
             const glm::vec2 left(leftOperandRawData[0], leftOperandRawData[1]);
             const glm::vec2 right(rightOperandRawData[0], rightOperandRawData[1]);
-            angle = angleBetween(left, right);
+            angle = ATMath::angleBetween(left, right);
         }
         else if (leftOperandSize == 3)
         {
             const glm::vec3 left(leftOperandRawData[0], leftOperandRawData[1], leftOperandRawData[2]);
             const glm::vec3 right(rightOperandRawData[0], rightOperandRawData[1],rightOperandRawData[2]);
-            angle = angleBetween(left, right);
+            angle = ATMath::angleBetween(left, right);
         }
         else
         {
             const glm::vec4 left(leftOperandRawData[0], leftOperandRawData[1], leftOperandRawData[2],leftOperandRawData[3]);
             const glm::vec4 right(rightOperandRawData[0], rightOperandRawData[1],rightOperandRawData[2],rightOperandRawData[3]);
-            angle = angleBetween(left, right);
+            angle = ATMath::angleBetween(left, right);
         }
         const std::span<const float> resultData(&angle, 1);
         dStore.write(outputAttrID, resultData);
@@ -170,6 +166,7 @@ constexpr std::span<const AttributeDescriptor> VectorOp::inputAttrSchema() const
     static constexpr AttributeDescriptor rightOperandAttr(
         kRightOperandAttrName, AttributeDataType::Float, AttributeDirection::Input);
     static constexpr std::array<const AttributeDescriptor, 3> inputAttrs = {vectorOpTypeIntAttr, leftOperandAttr, rightOperandAttr};
+
     return inputAttrs;
 }
 

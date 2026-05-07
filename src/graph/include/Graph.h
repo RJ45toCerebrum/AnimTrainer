@@ -88,6 +88,7 @@ private:
     // maps the node id and an Attribute Index -> attribute ID.
     // The attributeID is a unique globally identifying ID where the attribute index only identifies it within a node.
     NDESC std::optional<AttrID> fromNodeAttributeIndex(NodeID nodeID, int attrIndex, AttributeDirection dir) const;
+
 };
 
 class NDESC NodeHandle final

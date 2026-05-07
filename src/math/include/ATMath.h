@@ -104,6 +104,13 @@ namespace ATMath
     bool isNormalized(const glm::vec3& v);
     glm::vec3 perpendicular(const glm::vec3& v);
     float signedAngleBetween(const glm::vec3& from, const glm::vec3& to, const glm::vec3& axis);
+
+    template<glm::length_t L, typename T, glm::qualifier Q>
+    T angleBetween(glm::vec<L, T, Q> a, glm::vec<L, T, Q> b)
+    {
+        return glm::acos(glm::dot(glm::normalize(a), glm::normalize(b)));
+    }
+
     std::array<glm::vec3,8> getCubeCorners(const glm::vec3& hSize);
     ATMath::Ray transformRay(const Transform& transform, const Ray& ray);
     glm::vec3 evaluateRay(const Ray& ray, float param);

@@ -87,6 +87,15 @@ concept AttributeTypeConcept =
     std::same_as<T, float> || std::same_as<T, int> ||
     std::same_as<T, glm::vec2> || std::same_as<T, glm::vec3> || std::same_as<T, glm::vec4>;
 
+template <typename T>
+void assertAlignment(const std::vector<std::byte>& buffer)
+{
+    if (buffer.empty())
+        return;
+    const auto addr = reinterpret_cast<std::uintptr_t>(buffer.data());
+    assert(addr % alignof(T) == 0 && "Vector data is misaligned for the requested type.");
+}
+
 /// Attributes are a fundamental component to the graph.
 /// Every node has input attributes and output attributes.
 /// every attribute record is placed in the graphs flat list of attribute records.
@@ -187,78 +196,6 @@ struct AttributeRecord final
     // TODO: toString
 };
 
-
-// for every attribute there is a DataSlot entry in the graph. meaning,
-// the length of the attribute record list and the length of graphs data slot list are equal
-// at all times. On Node deletion, the memory is considered a tombstone.
-// The internal bytes array memory will be reclaimed, but DataSlot in graph will not.
-// Tombstone memory per node deletion =
-// (Total attribute count for type) * sizeof(AttributeRecord) +
-// (Total attribute count for type) * sizeof(DataSlot) +
-// sizeof(NodeRecord)
-// EXAMPLE:
-// Lets say average attr count = 6
-// sizeof(AttributeRecord) = 48 ; sizeof(DataSlot) = 40 ; sizeof(NodeRecord) = 104
-// 6 * 48 + 6 * 40 + 104 = 632 bytes of wasted space per node deletion (assuming all internal vectors are reclaimed).
-// However, when scene reloaded, space will be reclaimed. so not too big a deal.
-// This makes deletion and (undo) much easier and less error prone. So I go with tombstone approach.
-struct DataSlot final
-{
-    std::vector<std::byte> bytes;
-    // this version flag is key to efficiency of the graph.
-    // If there is a mismatch between this value and NodeRecord[attrID].lastSeenVersions
-    // this means the graph needs recompute.
-    uint64_t version = 0;
-
-    template<AttributeTypeConcept T>
-    std::span<const T> readAsSpan() const
-    {
-        assert(reinterpret_cast<uintptr_t>(bytes.data()) % alignof(T) == 0
-        && "DataSlot buffer insufficiently aligned for type T");
-        const T* rawData = reinterpret_cast<const T*>(bytes.data());
-        assert(bytes.size() % sizeof(T) == 0);
-        return {rawData, bytes.size() / sizeof(T)};
-    }
-
-    NDESC std::span<const std::byte> readAsBytes() const
-    {
-        return {bytes.data(), bytes.size()};
-    }
-
-    template<AttributeTypeConcept T>
-    void writeAsSpan(const std::span<const T> values)
-    {
-        const auto* begin = reinterpret_cast<const std::byte*>(values.data());
-        bytes.assign(begin, begin + values.size_bytes());
-        assert(bytes.size() % sizeof(T) == 0);
-        ++version;
-    }
-
-    void writeRawBytes(const std::span<const std::byte> data)
-    {
-        bytes.assign(data.begin(), data.end());
-        version++;
-    }
-
-    template<AttributeTypeConcept T>
-    static std::span<const std::byte> convert(std::span<const T> data)
-    {
-        const auto* begin = reinterpret_cast<const std::byte*>(data.data());
-        return {begin, data.size_bytes()};
-    }
-
-    template<AttributeTypeConcept T>
-    static std::span<const T> convert(const std::span<const std::byte> data)
-    {
-        const T* rawData = reinterpret_cast<const T*>(data.data());
-        assert(reinterpret_cast<uintptr_t>(rawData) % alignof(T) == 0
-            && "data buffer insufficiently aligned for type T");
-        assert(data.size_bytes() % sizeof(T) == 0);
-        return {rawData, data.size_bytes() / sizeof(T)};
-    }
-};
-
-
 // TODO: make all fields of the NodeRecord const (except for lastSeenVersions) and re-work graph createNode method.
 // We require inputAttrIDs and outputAttrIDs to stay fixed for the lifetime of NodeRecord.
 /// Every created node has a NodeRecord
@@ -312,6 +249,90 @@ struct AttrInfo final
     AttributeDataType type;
 };
 
+// for every attribute there is a DataSlot entry in the graph. meaning,
+// the length of the attribute record list and the length of graphs data slot list are equal
+// at all times. On Node deletion, the memory is considered a tombstone.
+// The internal bytes array memory will be reclaimed, but DataSlot in graph will not.
+// Tombstone memory per node deletion =
+// (Total attribute count for type) * sizeof(AttributeRecord) +
+// (Total attribute count for type) * sizeof(DataSlot) +
+// sizeof(NodeRecord)
+// EXAMPLE:
+// Lets say average attr count = 6
+// sizeof(AttributeRecord) = 48 ; sizeof(DataSlot) = 40 ; sizeof(NodeRecord) = 104
+// 6 * 48 + 6 * 40 + 104 = 632 bytes of wasted space per node deletion (assuming all internal vectors are reclaimed).
+// However, when scene reloaded, space will be reclaimed. so not too big a deal.
+// This makes deletion and (undo) much easier and less error prone. So I go with tombstone approach.
+struct DataSlot final
+{
+    std::vector<std::byte> bytes;
+    // this version flag is key to efficiency of the graph.
+    // If there is a mismatch between this value and NodeRecord[attrID].lastSeenVersions
+    // this means the graph needs recompute.
+    uint64_t version = 0;
+
+    template<AttributeTypeConcept T>
+    std::span<const T> readAsSpan() const
+    {
+        assertAlignment<T>(bytes);
+        const T* rawData = reinterpret_cast<const T*>(bytes.data());
+        // must be an integer number of T's
+        assert(bytes.size() % sizeof(T) == 0);
+        return {rawData, bytes.size() / sizeof(T)};
+    }
+
+    NDESC std::span<const std::byte> readAsBytes() const
+    {
+        return {bytes.data(), bytes.size()};
+    }
+
+    template<AttributeTypeConcept T>
+    void writeAsSpan(const std::span<const T> values)
+    {
+        const auto* begin = reinterpret_cast<const std::byte*>(values.data());
+        bytes.assign(begin, begin + values.size_bytes());
+        // never store partial data
+        assert(bytes.size() % sizeof(T) == 0);
+        ++version;
+    }
+
+    void writeRawBytes(const std::span<const std::byte> data)
+    {
+        bytes.assign(data.begin(), data.end());
+        version++;
+    }
+
+    template<AttributeTypeConcept T>
+    std::span<T> prepareWrite(const size_t count)
+    {
+        const size_t requiredBytes = count * sizeof(T);
+        bytes.resize(requiredBytes);
+        // this assertion is very important as later I need to add other more complex types.
+        // I am not ensuring alignment currently because I am using default allocator and mostly primitive types.
+        // however, if I get large arrays and need SIMD capabilities, alignment will be required.
+        assertAlignment<T>(bytes);
+        ++version;
+        return {reinterpret_cast<T*>(bytes.data()), count};
+    }
+
+    template<AttributeTypeConcept T>
+    static std::span<const std::byte> convert(std::span<const T> data)
+    {
+        const auto* begin = reinterpret_cast<const std::byte*>(data.data());
+        return {begin, data.size_bytes()};
+    }
+
+    template<AttributeTypeConcept T>
+    static std::span<const T> convert(const std::span<const std::byte> data)
+    {
+        const T* rawData = reinterpret_cast<const T*>(data.data());
+        assert(reinterpret_cast<uintptr_t>(rawData) % alignof(T) == 0
+            && "data buffer insufficiently aligned for type T");
+        assert(data.size_bytes() % sizeof(T) == 0);
+        return {rawData, data.size_bytes() / sizeof(T)};
+    }
+};
+
 /// Lightweight object that allows the node to read/write
 /// to the proper places without need to know the details of how/where the data comes/goes.
 class DataStore final
@@ -362,6 +383,16 @@ public:
     void writeSingle(const AttrID aid, const T value)
     {
         write<T>(aid, std::span<const T>{&value, 1});
+    }
+
+    // This can be used by node compute method to write directly into the buffer rather than
+    // having to allocate it in compute. Avoiding an allocation just to copy into a DataSlot buffer.
+    // NOTE: this increments the version, so once you request this data you are committed to writing to the buffer.
+    template<AttributeTypeConcept T>
+    std::span<T> prepareWrite(const AttrID aid, const size_t count)
+    {
+        DataSlot& ds = _data[aid];
+        return ds.prepareWrite<T>(count);
     }
 };
 

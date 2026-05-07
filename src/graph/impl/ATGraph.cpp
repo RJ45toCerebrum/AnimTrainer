@@ -405,7 +405,7 @@ bool SceneGraph::disconnect(const AttrID outputAttr, const AttrID inputAttr)
 void SceneGraph::evaluate()
 {
     // TODO: 1) perform any changes necessary from command queue
-    //if topo changes rebuild eval order
+    // if topo changes rebuild eval order
     if (_topoChanged)
         rebuildEvaluationOrder();
 
