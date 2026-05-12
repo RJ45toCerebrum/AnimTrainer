@@ -74,7 +74,7 @@ protected:
     {
         const SceneGraph& graphRef = _graphInstance.value();
         const DataSlot& ds = graphRef._dataSlots.at(attrID);
-        return ds.bytes.size();
+        return ds.bytesAllocated();
     }
 };
 
@@ -120,9 +120,8 @@ TEST_F(GraphTestFixture, CreateNodeTest)
     const std::vector<AttrInfo> inputAttrInfo = newNodeHandle.inputAttrInfo();
     const AttrInfo leftAttrInfo = inputAttrInfo[0];
     const AttrInfo rightAttrInfo = inputAttrInfo[1];
-
-    EXPECT_TRUE(leftAttrInfo.type == AttributeDataType::Float);
-    EXPECT_TRUE(rightAttrInfo.type == AttributeDataType::Float);
+    EXPECT_TRUE(isConcreteTypeSupported(leftAttrInfo.supportedTypes, AttributeDataType::Float));
+    EXPECT_TRUE(isConcreteTypeSupported(rightAttrInfo.supportedTypes, AttributeDataType::Float));
 
     const AttrID leftFloatAttr = leftAttrInfo.attrID;
     const AttrID rightFloatAttr = rightAttrInfo.attrID;
@@ -153,7 +152,7 @@ TEST_F(GraphTestFixture, NodeConnectionTest)
     EXPECT_TRUE(inputAttrOpt.has_value());
     const AttrID inputAttrID = inputAttrOpt.value();
 
-    EXPECT_TRUE(graphRef.connect(outputAttrID, inputAttrID));
+    EXPECT_TRUE(graphRef.connect(outputAttrID, inputAttrID) == GraphConnectionQueryInfo::IsConnected);
     EXPECT_TRUE(graphRef.topologyChanged());
     // after making a connection, we expect the memory in the input data slot should be of size 0
     EXPECT_TRUE(getDataSlotMemSizeForAttribute(inputAttrID) == 0);
@@ -240,9 +239,9 @@ TEST_F(GraphTestFixture, DetectCycle)
     EXPECT_TRUE(graphRef.buildFromGraphJson(jsonNodes));
 
     // create intentional cycle
-    NodeHandle rootNodeHandle = graphRef.getNodeHandle("Node0");
+    const NodeHandle rootNodeHandle = graphRef.getNodeHandle("Node0");
     EXPECT_TRUE(rootNodeHandle.isValid());
-    NodeHandle tailNodeHandle = graphRef.getNodeHandle("Node3");
+    const NodeHandle tailNodeHandle = graphRef.getNodeHandle("Node3");
     EXPECT_TRUE(tailNodeHandle.isValid());
 
     const auto inputAttrIDOpt =
@@ -252,7 +251,7 @@ TEST_F(GraphTestFixture, DetectCycle)
         tailNodeHandle.fromNodeAttributeIndex(0, ATGraph::AttributeDirection::Output);
     const AttrID outputAttrID = outputAttrIDOpt.value();
 
-    EXPECT_FALSE(graphRef.connect(outputAttrID, inputAttrID));
+    EXPECT_FALSE(graphRef.connect(outputAttrID, inputAttrID) == GraphConnectionQueryInfo::WillFormCycle);
 }
 
 END_NAMESPACE

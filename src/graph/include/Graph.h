@@ -5,16 +5,30 @@
 #include "NodeCompute.h"
 #include "GraphJson.h"
 
-#include <stdexcept>
+#include <iostream>
 #include <memory>
 #include <unordered_map>
 #include <expected>
-#include <array>
 
 START_NAMESPACE(ATGraph)
 
 using NodePtr = std::unique_ptr<INodeCompute>;
 using GraphRef = std::optional<std::reference_wrapper<class SceneGraph>>;
+
+
+// enumerations for graph queries.
+// TODO: currently, this does not does nothing outside of signaling connection failure types.
+// Eventually, when there is a command queue, this will play a more significant role.
+enum class GraphConnectionQueryInfo : uint8_t
+{
+    InvalidInputAttr,
+    InvalidOutputAttr,
+    AttributeTypeMismatch,
+    HasDifferentConnection,
+    WillFormCycle,
+    CanConnect,
+    IsConnected
+};
 
 
 class SceneGraph final
@@ -55,7 +69,7 @@ public:
     /// build from empty graph.
     bool buildFromGraphJson(const std::vector<JsonNodeGraphData>& graphData);
     bool deleteNode(NodeID nodeID);
-    bool connect(AttrID outputAttr, AttrID inputAttr);
+    GraphConnectionQueryInfo connect(AttrID outputAttr, AttrID inputAttr);
     bool disconnect(AttrID outputAttr, AttrID inputAttr);
 
     void evaluate();
@@ -74,22 +88,26 @@ private:
     NDESC bool isTombstone(NodeID nodeID) const;
     /// will return false if it's not input attribute or if input attr has no upstream input
     NDESC bool hasUpstreamInput(AttrID attrID) const;
+    NDESC bool doesAttrHoldType(AttrID attrID, AttributeDataType dataType) const;
+    NDESC const AttributeRecord& getAttrRecordUnchecked(AttrID attrID) const;
     NDESC uint64_t getAttrComputeCode(AttrID aid) const;
     NDESC bool getAttrInfo(NodeID nodeID, AttributeDirection dir, std::span<AttrInfo> attrInfos) const;
     NDESC std::vector<AttrInfo> getAttrInfo(NodeID nodeID, AttributeDirection dir) const;
     NDESC bool nodeNeedsCompute(const NodeRecord& node) const;
-    NDESC bool canConnect(AttrID outputAttr, AttrID inputAttr) const;
+    NDESC bool nodeHasConnections(const NodeRecord& node) const;
+    NDESC GraphConnectionQueryInfo canConnect(AttrID outputAttr, AttrID inputAttr) const;
+    NDESC std::string connectionQueryMsg(GraphConnectionQueryInfo connectionQueryInfo, AttrID outputAttr, AttrID inputAttr) const;
     NDESC bool willFormCycle(AttrID outputAttr, AttrID inputAttr) const;
     void updateNodeAttrVersion(NodeRecord& nodeRecord) const;
     void rebuildEvaluationOrder();
 
     NDESC std::span<const std::byte> getData(AttrID attrID) const;
-    bool setUnpluggedInputAttrData(AttrID attrID, std::span<const std::byte> data);
+    bool setUnpluggedInputAttrData(AttrID attrID, AttributeDataType dataType, std::span<const std::byte> data);
     // maps the node id and an Attribute Index -> attribute ID.
     // The attributeID is a unique globally identifying ID where the attribute index only identifies it within a node.
     NDESC std::optional<AttrID> fromNodeAttributeIndex(NodeID nodeID, int attrIndex, AttributeDirection dir) const;
-
 };
+
 
 class NDESC NodeHandle final
 {
@@ -141,14 +159,15 @@ public:
     std::span<const T> getData(const AttrID attrID) const
     {
         const SceneGraph& gr = SceneGraph::instance();
-        if (not gr.isValidAttrID(attrID))
-            return std::span<const T>{};
-
-        // TODO: should make the graph getData method a template...
-        const AttributeRecord& arec = gr._attributeRecords[attrID];
+        assert(gr.isValidAttrID(attrID));
+        const AttributeRecord& arec = gr.getAttrRecordUnchecked(attrID);
         assert(arec.owner == _nodeID);
-        // TODO: instead of demanding the types be identical, I need to make types coercible.
-        assert(arec.type == enumFromAttrType<T>());
+        constexpr AttributeDataType requestedDataType = enumFromAttrType<T>();
+        if(not gr.doesAttrHoldType(attrID, requestedDataType))
+        {
+            std::cerr << "[NodeHandle::getData] The requested data type T does not match the data held" << std::endl;
+            return std::span<const T>{};
+        }
         const std::span<const std::byte> byteData = gr.getData(attrID);
         return DataSlot::convert<T>(byteData);
     }
@@ -158,7 +177,10 @@ public:
     {
         const auto outputAttrOpt = fromNodeAttributeIndex(attrIndex, AttributeDirection::Output);
         if (not outputAttrOpt)
+        {
+            std::cerr << "[NodeHandle::getOutputAttrData] Invalid attribute index" << std::endl;
             return std::span<const T>{};
+        }
         return getData<T>(outputAttrOpt.value());
     }
 
@@ -166,16 +188,14 @@ public:
     bool setUnpluggedInputAttrData(const AttrID attrID, const std::span<const T> data)
     {
         SceneGraph& gr = SceneGraph::instance();
-        assert(gr.isValidAttrID(attrID));
         assert(gr.isValidNodeID(_nodeID));
-        // TODO: need to fix. violation of my rule. This will due for now.
-        const AttributeRecord& arec = gr._attributeRecords[attrID];
+        assert(gr.isValidAttrID(attrID));
+        const AttributeRecord& arec = gr.getAttrRecordUnchecked(attrID);
         // never allow setting of attribute if it does not belong to the node this handle belongs to.
         assert(arec.owner == _nodeID);
         constexpr AttributeDataType attrType = enumFromAttrType<T>();
-        assert(arec.type == attrType);
         const std::span<const std::byte> byteData = DataSlot::convert(data);
-        return gr.setUnpluggedInputAttrData(attrID, byteData);
+        return gr.setUnpluggedInputAttrData(attrID, attrType, byteData);
     }
 
     template<AttributeTypeConcept T>

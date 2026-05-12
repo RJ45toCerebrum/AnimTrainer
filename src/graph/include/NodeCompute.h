@@ -29,17 +29,19 @@ public:
     virtual void compute(const NodeRecord& nodeRecord, DataStore& dStore) = 0;
     // Some nodes need compute regardless of input (such as nodes with 0 inputs like TimeNode);
     NDESC virtual bool alwaysCompute() const = 0;
+    NDESC virtual bool changeAttributeDataType(const NodeRecord& nodeRecord,
+        AttributeDataType concreteType, AttrID inputAttr, DataStore& dStore) = 0;
     virtual void initDataSlotDefaultValue(DataSlot& dataSlot, const AttributeDescriptor& attrDescriptor) const = 0;
     /// NOTE: the order you return these is important. When a node compute is called
     /// A node can identify specific attributes with an index.
     /// Example: if you return {float, float, quat, transform}
     /// A node can load the quat first via: nodeRecord.inputAttrIDs[2].
     /// The graph always creates the attribute records in the order returned.
-    NDESC virtual constexpr std::span<const AttributeDescriptor> inputAttrSchema() const = 0;
+    NDESC virtual const std::span<const AttributeDescriptor> inputAttrSchema() const = 0;
     /// read inputAttrSchema summary. Same goes for outputAttrSchema.
-    NDESC virtual constexpr std::span<const AttributeDescriptor> outputAttrSchema() const = 0;
-    NDESC virtual constexpr std::string_view nodeName() const = 0;
-    NDESC virtual constexpr NodeTypeID nodeTypeID() const = 0;
+    NDESC virtual const std::span<const AttributeDescriptor> outputAttrSchema() const = 0;
+    NDESC virtual const std::string_view nodeName() const = 0;
+    NDESC virtual const NodeTypeID nodeTypeID() const = 0;
     virtual ~INodeCompute() = default;
 };
 

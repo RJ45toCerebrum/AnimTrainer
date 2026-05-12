@@ -3,6 +3,8 @@
 
 START_NAMESPACE(ATGraph)
 
+static constexpr std::string_view kOutputAttrName("TimeOutput");
+
 void TimeNode::compute(const NodeRecord& nodeRecord, DataStore& dStore)
 {
     assert(nodeRecord.outputAttrIDs.size() == 1);
@@ -11,24 +13,32 @@ void TimeNode::compute(const NodeRecord& nodeRecord, DataStore& dStore)
     // This may not work in many cases. But will do for now.
     const auto deltaTime = static_cast<float>(GetFrameTime());
     const std::array data = {appTime, deltaTime};
-    const std::span rawData(data.data(), data.size());
-    dStore.write(nodeRecord.outputAttrIDs[0], rawData);
+    dStore.write<float>(nodeRecord.outputAttrIDs[0], data);
 }
 
 void TimeNode::initDataSlotDefaultValue(DataSlot& dataSlot, const AttributeDescriptor& attrDescriptor) const
-{}
+{
+    constexpr std::array kDefaultBufferValues = {0.0f, 0.0f};
+    dataSlot.writeAsSpan<float>(kDefaultBufferValues);
+}
+
+NDESC bool TimeNode::changeAttributeDataType(const NodeRecord& nodeRecord, const AttributeDataType concreteType,
+    const AttrID inputAttr, DataStore& dStore)
+{
+    return true;
+}
 
 // TimeNode's have 0 inputs
-constexpr std::span<const AttributeDescriptor> TimeNode::inputAttrSchema() const
+const std::span<const AttributeDescriptor> TimeNode::inputAttrSchema() const
 {
     return {};
 }
 
-constexpr std::span<const AttributeDescriptor> TimeNode::outputAttrSchema() const
+const std::span<const AttributeDescriptor> TimeNode::outputAttrSchema() const
 {
-    constexpr AttributeDescriptor outputDescriptor("TimeOutput", AttributeDataType::Float, AttributeDirection::Output);
-    static constexpr std::array<const AttributeDescriptor, 1> outputAttrs = {outputDescriptor};
-    return outputAttrs;
+    constexpr AttributeDescriptor outputDescriptor(kOutputAttrName, AttributeDataType::Float, AttributeDirection::Output);
+    static constexpr std::array<const AttributeDescriptor, 1> kOutputAttrs = {outputDescriptor};
+    return kOutputAttrs;
 }
 
 bool TimeNode::alwaysCompute() const
@@ -36,12 +46,12 @@ bool TimeNode::alwaysCompute() const
     return true;
 }
 
-constexpr std::string_view TimeNode::nodeName() const
+const std::string_view TimeNode::nodeName() const
 {
     return kNodeName;
 }
 
-constexpr NodeTypeID TimeNode::nodeTypeID() const
+const NodeTypeID TimeNode::nodeTypeID() const
 {
     return kNodeTypeId;
 }

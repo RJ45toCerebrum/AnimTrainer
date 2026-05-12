@@ -12,6 +12,8 @@ static constexpr std::string_view kVectorOpTypeAttrName = "VectorOpType";
 static constexpr std::string_view kLeftOperandAttrName = "LeftOperand";
 static constexpr std::string_view kRightOperandAttrName = "RightOperand";
 static constexpr std::string_view kVectorOpOutputAttrName = "VectorOpOutput";
+static constexpr AttributeDataType kSupportedOperandTypes =
+    AttributeDataType::Vec2 | AttributeDataType::Vec3 | AttributeDataType::Vec4;
 
 
 void VectorOp::compute(const NodeRecord& nodeRecord, DataStore& dStore)
@@ -142,35 +144,29 @@ void VectorOp::compute(const NodeRecord& nodeRecord, DataStore& dStore)
 void VectorOp::initDataSlotDefaultValue(DataSlot& dataSlot, const AttributeDescriptor& attrDescriptor) const
 {
     // vec3 assumed.
-    static constexpr glm::vec3 kDefaultVectorOperand(0.0f, 0.0f, 0.0f);
-    static constexpr std::span kDefaultOperandRawData(&kDefaultVectorOperand, 1);
-    if (attrDescriptor.name == kVectorOpTypeAttrName)
-    {
-        static constexpr VectorOpType kDefaultVectorOpType = VectorOpType::VectorScale;
-        static constexpr int defaultOpTypeInt = static_cast<int>(kDefaultVectorOpType);
-        static constexpr std::span rawData(&defaultOpTypeInt, 1);
-        dataSlot.writeAsSpan(rawData);
-    }
-    else
-    {
-        dataSlot.writeAsSpan(kDefaultOperandRawData);
-    }
+    dataSlot.updateConcreteType(AttributeDataType::Vec3);
 }
 
-constexpr std::span<const AttributeDescriptor> VectorOp::inputAttrSchema() const
+bool VectorOp::changeAttributeDataType(const NodeRecord& nodeRecord,
+    const AttributeDataType concreteType, const AttrID inputAttr, DataStore& dStore)
+{
+    dStore.updateAttributeType(inputAttr, concreteType);
+    return true;
+}
+
+const std::span<const AttributeDescriptor> VectorOp::inputAttrSchema() const
 {
     static constexpr AttributeDescriptor vectorOpTypeIntAttr(
         kVectorOpTypeAttrName, AttributeDataType::Int, AttributeDirection::Input);
     static constexpr AttributeDescriptor leftOperandAttr(
-        kLeftOperandAttrName, AttributeDataType::Float, AttributeDirection::Input);
+        kLeftOperandAttrName, kSupportedOperandTypes, AttributeDirection::Input);
     static constexpr AttributeDescriptor rightOperandAttr(
-        kRightOperandAttrName, AttributeDataType::Float, AttributeDirection::Input);
+        kRightOperandAttrName, kSupportedOperandTypes, AttributeDirection::Input);
     static constexpr std::array<const AttributeDescriptor, 3> inputAttrs = {vectorOpTypeIntAttr, leftOperandAttr, rightOperandAttr};
-
     return inputAttrs;
 }
 
-constexpr std::span<const AttributeDescriptor> VectorOp::outputAttrSchema() const
+const std::span<const AttributeDescriptor> VectorOp::outputAttrSchema() const
 {
     static constexpr AttributeDescriptor vectorOpOutputAttr(
         kVectorOpOutputAttrName, AttributeDataType::Float, AttributeDirection::Output);
@@ -182,13 +178,11 @@ bool VectorOp::alwaysCompute() const
 {
     return false;
 }
-
-constexpr std::string_view VectorOp::nodeName() const
+const std::string_view VectorOp::nodeName() const
 {
     return kNodeName;
 }
-
-constexpr NodeTypeID VectorOp::nodeTypeID() const
+const NodeTypeID VectorOp::nodeTypeID() const
 {
     return kNodeTypeID;
 }

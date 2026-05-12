@@ -6,6 +6,7 @@ START_NAMESPACE(ATGraph)
 
 static constexpr std::string_view kRadiansAttrName("Radians");
 
+
 void SinCosOp::compute(const NodeRecord& nodeRecord, DataStore& dStore)
 {
     const AttrID radiansInputAttrID = nodeRecord.inputAttrIDs.at(0);
@@ -27,12 +28,20 @@ void SinCosOp::compute(const NodeRecord& nodeRecord, DataStore& dStore)
 
 void SinCosOp::initDataSlotDefaultValue(DataSlot& dataSlot, const AttributeDescriptor& attrDescriptor) const
 {
+    assert(attrDescriptor.supportedTypes == AttributeDataType::Float);
     constexpr float defaultValue = 0.f;
     constexpr std::array defaultBuffer = {defaultValue};
     dataSlot.writeAsSpan<float>(defaultBuffer);
 }
 
-constexpr std::span<const AttributeDescriptor> SinCosOp::inputAttrSchema() const
+bool SinCosOp::changeAttributeDataType(const NodeRecord& nodeRecord,
+    const AttributeDataType concreteType, const AttrID inputAttr, DataStore& dStore)
+{
+    dStore.updateAttributeType(inputAttr, concreteType);
+    return true;
+}
+
+const std::span<const AttributeDescriptor> SinCosOp::inputAttrSchema() const
 {
     static constexpr AttributeDescriptor kRadiansAttrDescriptor(
         kRadiansAttrName, AttributeDataType::Float, AttributeDirection::Input);
@@ -40,7 +49,7 @@ constexpr std::span<const AttributeDescriptor> SinCosOp::inputAttrSchema() const
     return kInputAttrs;
 }
 
-constexpr std::span<const AttributeDescriptor> SinCosOp::outputAttrSchema() const
+const std::span<const AttributeDescriptor> SinCosOp::outputAttrSchema() const
 {
     static constexpr std::string_view kSinAttrName("Sin");
     static constexpr std::string_view kCosAttrName("Cos");
@@ -58,13 +67,11 @@ bool SinCosOp::alwaysCompute() const
 {
     return false;
 }
-
-constexpr std::string_view SinCosOp::nodeName() const
+const std::string_view SinCosOp::nodeName() const
 {
     return kNodeName;
 }
-
-constexpr NodeTypeID SinCosOp::nodeTypeID() const
+const NodeTypeID SinCosOp::nodeTypeID() const
 {
     return kNodeTypeID;
 }

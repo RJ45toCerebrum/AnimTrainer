@@ -4,8 +4,8 @@
 #include <queue>
 #include <stack>
 #include <random>
-#include <iostream>
 #include <set>
+
 
 START_NAMESPACE(ATGraph)
 
@@ -59,7 +59,6 @@ void SceneGraph::destroy()
     _instance.reset();
 }
 
-
 SceneGraph::SceneGraph()
 {
     std::random_device rd;
@@ -71,6 +70,7 @@ SceneGraph::SceneGraph()
     _nodeRecords.push_back(std::move(invalidRecord));
     _nodeNames.emplace_back("InvalidNodeID");
 }
+
 
 NodeHandle SceneGraph::createNode(const NodeTypeID typeID, const std::string_view name)
 {
@@ -100,19 +100,18 @@ NodeHandle SceneGraph::createNode(const NodeTypeID typeID, const std::string_vie
         AttributeRecord inputAttrRecord;
         inputAttrRecord.owner = newNodeRecordID;
         inputAttrRecord.direction = iDesc.direction;
-        inputAttrRecord.type = iDesc.type;
+        inputAttrRecord.supportedTypes = iDesc.supportedTypes;
         inputAttrRecord.upstream = kInvalidAttr;
 
         _attributeRecords.push_back(std::move(inputAttrRecord));
         newNodeRecord.inputAttrIDs.push_back(_attributeRecords.size() - 1);
         newNodeRecord.lastSeenVersions.push_back(0);
 
-        // every attr needs a data slot
         DataSlot newDataSlot;
+        nodeCompute.initDataSlotDefaultValue(newDataSlot, iDesc);
         // NOTE how I intentionally mismatch the data slot version and lastSeenVersions
         // this is important as we want to compute to be called initially.
-        newDataSlot.version = newNodeRecord.lastSeenVersions.back() + 1;
-        nodeCompute.initDataSlotDefaultValue(newDataSlot, iDesc);
+        newDataSlot.updateVersion(newNodeRecord.lastSeenVersions.back() + 1);
         _dataSlots.push_back(std::move(newDataSlot));
         assert(_attributeRecords.size() == _dataSlots.size());
     }
@@ -123,15 +122,15 @@ NodeHandle SceneGraph::createNode(const NodeTypeID typeID, const std::string_vie
         AttributeRecord outAttrRecord;
         outAttrRecord.owner = newNodeRecordID;
         outAttrRecord.direction = outDesc.direction;
-        outAttrRecord.type = outDesc.type;
+        outAttrRecord.supportedTypes = outDesc.supportedTypes;
         outAttrRecord.upstream = kInvalidAttr;
 
         _attributeRecords.push_back(std::move(outAttrRecord));
         newNodeRecord.outputAttrIDs.push_back(_attributeRecords.size() - 1);
 
         DataSlot newDataSlot;
-        newDataSlot.version = 1;
         nodeCompute.initDataSlotDefaultValue(newDataSlot, outDesc);
+        newDataSlot.updateVersion(1);
         _dataSlots.push_back(std::move(newDataSlot));
         assert(_attributeRecords.size() == _dataSlots.size());
     }
@@ -231,10 +230,10 @@ bool SceneGraph::buildFromGraphJson(const std::vector<JsonNodeGraphData>& graphD
             }
             const AttrID outputAttrID = outputAttrIDOpt.value();
             const AttrID inputAttrID = inputAttrIDOpt.value();
-            if (not connect(outputAttrID, inputAttrID))
+            const GraphConnectionQueryInfo connectionQueryInfo = connect(outputAttrID, inputAttrID);
+            if (connectionQueryInfo != GraphConnectionQueryInfo::IsConnected)
             {
-                std::cerr << "[SceneGraph::buildFromGraphJson] Failed to connect the attributes of node pair: "
-                << '[' << fromNodeName << ',' << toNodeName << ']' << std::endl;
+                std::cerr << connectionQueryMsg(connectionQueryInfo, outputAttrID, inputAttrID) << std::endl;
                 return false;
             }
         }
@@ -242,28 +241,28 @@ bool SceneGraph::buildFromGraphJson(const std::vector<JsonNodeGraphData>& graphD
     return true;
 }
 
-bool SceneGraph::canConnect(const AttrID outputAttr, const AttrID inputAttr) const
+GraphConnectionQueryInfo SceneGraph::canConnect(const AttrID outputAttr, const AttrID inputAttr) const
 {
     if (not isValidInputAttrID(inputAttr))
-    {
-        std::cerr << "[SceneGraph::connect] Invalid input attribute " << inputAttr << std::endl;
-        return false;
-    }
+        return GraphConnectionQueryInfo::InvalidInputAttr;
     if (not isValidOutputAttrID(outputAttr))
-    {
-        std::cerr << "[SceneGraph::connect] Invalid input attribute ID " << inputAttr << std::endl;
-        return false;
-    }
+        return GraphConnectionQueryInfo::InvalidOutputAttr;
+
     const AttributeRecord& inputAttrRec = _attributeRecords[inputAttr];
     const AttributeRecord& outputAttrRec = _attributeRecords[outputAttr];
-    // TODO: instead of demanding the types be identical, I need to make types coercible.
-    // I could make conversion nodes, but conversion nodes would liter the graph and make it very unreadable.
-    // I need to define a function isTypeCoercibleTo() or something like that.
-    // For now, I go with exact type approach because I think that reduces bugs at this early phase.
-    if (inputAttrRec.type != outputAttrRec.type)
+
+    const DataSlot& outputDataSlot = _dataSlots[outputAttr];
+    const AttributeDataType outputConcreteType = outputDataSlot.getConcreteType();
+    const DataSlot& inputDataSlot = _dataSlots[inputAttr];
+    const AttributeDataType inputConcreteType = inputDataSlot.getConcreteType();
+    if (outputConcreteType != inputConcreteType)
     {
-        std::cerr << "[SceneGraph::connect] The attributes being connected have incompatible types" << std::endl;
-        return false;
+        const NodeRecord& inputNodeRecord = _nodeRecords.at(inputAttrRec.owner);
+        // we allow type changes on input node, but the node receiving the input must:
+        // 1) support the output attributes concrete type (the type it actually is now).
+        // 2) The node must not have any connections. We do not attempt recursive changes to types in graph.
+        if (not isConcreteTypeSupported(inputAttrRec.supportedTypes, outputConcreteType) or nodeHasConnections(inputNodeRecord))
+            return GraphConnectionQueryInfo::AttributeTypeMismatch;
     }
     if (inputAttrRec.hasInputSources())
     {
@@ -271,22 +270,14 @@ bool SceneGraph::canConnect(const AttrID outputAttr, const AttrID inputAttr) con
         {
             const auto fitr = outputAttrRec.findOutputSource(inputAttr);
             assert(fitr != outputAttrRec.downstream.end());
-            std::cerr << "[SceneGraph::connect] Input attribute already has outputAttr plugged in" << std::endl;
+            return GraphConnectionQueryInfo::IsConnected;
         }
-        else
-        {
-            std::cerr << "[SceneGraph::connect] Input attribute already has a source plugged in" << std::endl;
-        }
-        return false;
+        return GraphConnectionQueryInfo::HasDifferentConnection;
     }
     const auto fitr = outputAttrRec.findOutputSource(inputAttr);
     assert(fitr == outputAttrRec.downstream.end());
-    if (willFormCycle(outputAttr, inputAttr))
-    {
-        std::cerr << "[SceneGraph::connect] Unable to connect attributes because it will form a cycle" << std::endl;
-        return false;
-    }
-    return true;
+    return willFormCycle(outputAttr, inputAttr) ?
+        GraphConnectionQueryInfo::WillFormCycle : GraphConnectionQueryInfo::CanConnect;
 }
 
 bool SceneGraph::willFormCycle(const AttrID outputAttr, const AttrID inputAttr) const
@@ -332,24 +323,46 @@ bool SceneGraph::willFormCycle(const AttrID outputAttr, const AttrID inputAttr) 
     return false;
 }
 
-bool SceneGraph::connect(const AttrID outputAttr, const AttrID inputAttr)
+GraphConnectionQueryInfo SceneGraph::connect(const AttrID outputAttr, const AttrID inputAttr)
 {
-    if (not canConnect(outputAttr, inputAttr))
-        return false;
-
+    const GraphConnectionQueryInfo connectionQueryInfo = canConnect(outputAttr, inputAttr);
+    if (connectionQueryInfo != GraphConnectionQueryInfo::CanConnect)
+    {
+        std::cerr << connectionQueryMsg(connectionQueryInfo, outputAttr, inputAttr) << std::endl;
+        return connectionQueryInfo;
+    }
     AttributeRecord& outputAttrRec = _attributeRecords[outputAttr];
     AttributeRecord& inputAttrRec = _attributeRecords[inputAttr];
+    const DataSlot& outputDataSlot = _dataSlots[outputAttr];
+    const AttributeDataType outputConcreteType = outputDataSlot.getConcreteType();
+    DataSlot& inputDataSlot = _dataSlots[inputAttr];
+    const AttributeDataType inputConcreteType = inputDataSlot.getConcreteType();
+    if (outputConcreteType != inputConcreteType)
+    {
+        // type change on input required for connection. canConnect already verified that its safe to do so.
+        std::cout << "[SceneGraph::connect] performing type conversion on input node to allow connection" << std::endl;
+        // in order to do a type update, it not enough to just change the type of this attribute.
+        // The node may need to change other attributes. EXAMPLE:
+        // Lets say we have AddNode; we are type changing Left operand attribute type from Float -> Vec3.
+        // The node must also change the right operand data type to Vec3 as well. The graph delegates this task to the
+        // node as the node doing computing is in better positioned to handle such type changes. The graphs job is simple
+        // here: hand the node the DataStore.
+        const NodeRecord& inputNodeRec = _nodeRecords[inputAttrRec.owner];
+        const auto fitr = _nodeTypeMap.find(inputNodeRec.typeID);
+        assert(fitr != _nodeTypeMap.end());
+        INodeCompute& nodeCompute = *fitr->second;
+        DataStore dataStore(_attributeRecords, _dataSlots);
+        // assert because IF the node could not make the change THEN canConnect should not have retuned CanConnect
+        assert(nodeCompute.changeAttributeDataType(inputNodeRec, outputConcreteType, inputAttr, dataStore));
+    }
+
     inputAttrRec.upstream = outputAttr;
     outputAttrRec.downstream.push_back(inputAttr);
-
     // once input attribute plugged in, the data source now exists in the upstream data slot.
     // claim the current data slot memory
-    DataSlot& currentAttrData = _dataSlots[inputAttr];
-    currentAttrData.bytes.clear();
-    currentAttrData.bytes.shrink_to_fit();
-
+    inputDataSlot.freeMemory();
     _topoChanged = true;
-    return true;
+    return GraphConnectionQueryInfo::IsConnected;
 }
 
 bool SceneGraph::disconnect(const AttrID outputAttr, const AttrID inputAttr)
@@ -375,8 +388,11 @@ bool SceneGraph::disconnect(const AttrID outputAttr, const AttrID inputAttr)
         << "They should be connected for a valid disconnect call." << std::endl;
         return false;
     }
-    // IF the types do not match here, something went horribly wrong.
-    assert(inputAttrRec.type == outputAttrRec.type);
+    DataSlot& inputAttrData = _dataSlots.at(inputAttr);
+    DataSlot& outputAttrData = _dataSlots.at(outputAttr);
+
+    // IF the types do not match here, something went horribly wrong. They must match exactly.
+    assert(inputAttrData.getConcreteType() == outputAttrData.getConcreteType());
     // assert because this means the graph is straight broken
     const auto fitr = outputAttrRec.findOutputSource(inputAttr);
     assert(fitr != outputAttrRec.downstream.end());
@@ -384,23 +400,22 @@ bool SceneGraph::disconnect(const AttrID outputAttr, const AttrID inputAttr)
     inputAttrRec.upstream = kInvalidAttr;
     outputAttrRec.downstream.erase(fitr);
 
-    NodeRecord& inputNodeRecord = _nodeRecords.at(inputAttrRec.owner);
-    const int attrIndex = inputNodeRecord.getAttrIndex(inputAttr);
-    assert(attrIndex > -1);
-    DataSlot& currentAttrData = _dataSlots.at(inputAttr);
-
     // realloc mem claimed in connect call.
+    NodeRecord& inputNodeRecord = _nodeRecords.at(inputAttrRec.owner);
     const auto inputNodeFitr = _nodeTypeMap.find(inputNodeRecord.typeID);
     assert(inputNodeFitr != _nodeTypeMap.end());
     const INodeCompute& nodeCompute = *inputNodeFitr->second;
     const auto inputSchema = nodeCompute.inputAttrSchema();
-    nodeCompute.initDataSlotDefaultValue(currentAttrData, inputSchema[attrIndex]);
-    // this ensures compute all happen for all downstream nodes.
-    inputNodeRecord.lastSeenVersions[attrIndex] = currentAttrData.version + 1;
+    const int attrIndex = inputNodeRecord.getAttrIndex(inputAttr);
+    assert(attrIndex > -1);
+    nodeCompute.initDataSlotDefaultValue(inputAttrData, inputSchema[attrIndex]);
+    // this ensures compute is called for all downstream nodes.
+    inputNodeRecord.lastSeenVersions[attrIndex] = inputAttrData.version() + 1;
 
     _topoChanged = true;
     return true;
 }
+
 
 void SceneGraph::evaluate()
 {
@@ -427,6 +442,64 @@ void SceneGraph::evaluate()
         }
     }
 }
+
+void SceneGraph::rebuildEvaluationOrder()
+{
+    std::unordered_map<NodeID, int16_t> inDegMap;
+    std::queue<NodeID> topoOrderQueue;
+    uint32_t nodeCount = 0;
+    for (NodeID nid = 0; nid < _nodeRecords.size(); nid++)
+    {
+        const NodeRecord& nRec = _nodeRecords[nid];
+        if (nRec.isTombstone())
+            continue;
+
+        nodeCount++;
+        assert(nRec.inputAttrIDs.size() < std::numeric_limits<int16_t>::max());
+        int16_t upstreamDeg = 0;
+        for (const AttrID aid : nRec.inputAttrIDs)
+        {
+            if (hasUpstreamInput(aid))
+                upstreamDeg++;
+        }
+        inDegMap.insert({nid, upstreamDeg});
+        if (upstreamDeg == 0)
+            topoOrderQueue.emplace(nid);
+    }
+    // It's possible for 0 nodes to have an in-degree of 0. This is recoverable, however, I do not attempt this now.
+    // TODO: recover from missing topological island error
+    // For each topological island, there should be at least 1 node present (but not necessarily 1).
+    assert(not topoOrderQueue.empty() && "When attempting to rebuild evaluation order, 0 nodes had a in-degree of 0.");
+
+    _evaluationOrder.clear();
+    while (not topoOrderQueue.empty())
+    {
+        const NodeID nid = topoOrderQueue.front();
+        topoOrderQueue.pop();
+        _evaluationOrder.push_back(nid);
+
+        const NodeRecord& nRec = _nodeRecords[nid];
+        assert(not nRec.isTombstone());
+        for (const AttrID attrID : nRec.outputAttrIDs)
+        {
+            const AttributeRecord& attrRec = _attributeRecords[attrID];
+            for (const AttrID dsID : attrRec.downstream)
+            {
+                assert(isValidAttrID(dsID));
+                const NodeID downstreamOwner = _attributeRecords[dsID].owner;
+                const auto fitr = inDegMap.find(downstreamOwner);
+                assert(fitr != inDegMap.end() and fitr->second != 0);
+                fitr->second--;
+                if (fitr->second == 0)
+                    topoOrderQueue.push(downstreamOwner);
+            }
+        }
+    }
+    assert(_evaluationOrder.size() == nodeCount && "Not every node is in the evaluation order vector. "
+                                                   "This means some nodes could not be computed.");
+    _topoChanged = false;
+}
+
 
 bool SceneGraph::topologyChanged() const
 {
@@ -485,6 +558,20 @@ bool SceneGraph::hasUpstreamInput(const AttrID attrID) const
     return isValidAttrID(attrID) and _attributeRecords[attrID].hasInputSources();
 }
 
+bool SceneGraph::doesAttrHoldType(const AttrID attrID, const AttributeDataType dataType) const
+{
+    if (not isValidAttrID(attrID))
+        return false;
+    const AttributeRecord& attrRecord = _attributeRecords[attrID];
+    const DataSlot& attrDataSlot = _dataSlots.at(attrRecord.owner);
+    return attrDataSlot.getConcreteType() == dataType;
+}
+
+const AttributeRecord& SceneGraph::getAttrRecordUnchecked(const AttrID attrID) const
+{
+    return _attributeRecords[attrID];
+}
+
 bool SceneGraph::getAttrInfo(const NodeID nodeID, const AttributeDirection dir, std::span<AttrInfo> attrInfos) const
 {
     if (not isValidNodeID(nodeID))
@@ -492,7 +579,6 @@ bool SceneGraph::getAttrInfo(const NodeID nodeID, const AttributeDirection dir, 
 
     const NodeRecord& nr = _nodeRecords[nodeID];
     const std::vector<AttrID>& attrIDs = dir == AttributeDirection::Input ? nr.inputAttrIDs : nr.outputAttrIDs;
-
     if (attrInfos.size() != attrIDs.size())
         return false;
 
@@ -502,7 +588,7 @@ bool SceneGraph::getAttrInfo(const NodeID nodeID, const AttributeDirection dir, 
         const AttrID attrID = attrIDs[i];
         assert(isValidAttrID(attrID));
         const AttributeRecord& arec = _attributeRecords[attrID];
-        attrInfo.type = arec.type;
+        attrInfo.supportedTypes = arec.supportedTypes;
         attrInfo.attrID = attrID;
     }
     return true;
@@ -524,7 +610,7 @@ std::vector<AttrInfo> SceneGraph::getAttrInfo(const NodeID nodeID, const Attribu
         const AttrID attrID = attrIDs[i];
         assert(isValidAttrID(attrID));
         const AttributeRecord& arec = _attributeRecords[attrID];
-        attrInfo.type = arec.type;
+        attrInfo.supportedTypes = arec.supportedTypes;
         attrInfo.attrID = attrID;
     }
     return attrInfos;
@@ -533,22 +619,52 @@ std::vector<AttrInfo> SceneGraph::getAttrInfo(const NodeID nodeID, const Attribu
 std::span<const std::byte> SceneGraph::getData(const AttrID attrID) const
 {
     assert(isValidAttrID(attrID));
+    const AttributeRecord& attrRec = _attributeRecords[attrID];
+    if (attrRec.isInputAttr() and attrRec.hasSources())
+    {
+        const DataSlot& upds = _dataSlots[attrRec.upstream];
+        return upds.readAsBytes();
+    }
     const DataSlot& ds = _dataSlots[attrID];
-    return {ds.bytes.data(), ds.bytes.size()};
+    return ds.readAsBytes();
 }
 
-bool SceneGraph::setUnpluggedInputAttrData(const AttrID attrID, const std::span<const std::byte> data)
+bool SceneGraph::setUnpluggedInputAttrData(const AttrID attrID, const AttributeDataType dataType, const std::span<const std::byte> data)
 {
-    if (not isValidAttrID(attrID))
+    if (not isValidInputAttrID(attrID))
     {
-        std::cerr << "Invalid attribute ID: " << attrID << std::endl;
+        std::cerr << "[SceneGraph::setUnpluggedInputAttrData] Invalid input attribute ID: " << attrID << std::endl;
         return false;
     }
     const AttributeRecord& ar = _attributeRecords[attrID];
-    if (not ar.isInputAttr() or ar.hasSources())
+    if (ar.hasSources())
+    {
+        std::cerr << "[SceneGraph::setUnpluggedInputAttrData] The attribute is plugged. "
+                     "Setting data on plugged attribute is invalid" << std::endl;
         return false;
-
+    }
+    if (not isConcreteTypeSupported(ar.supportedTypes, dataType))
+    {
+        std::cerr << "[SceneGraph::setUnpluggedInputAttrData] The data type is not supported by the input attribute" << std::endl;
+        return false;
+    }
     DataSlot& ds = _dataSlots[attrID];
+    if (ds.getConcreteType() == dataType)
+    {
+        ds.writeRawBytes(data);
+        return true;
+    }
+    // We need to convert the data slot type.
+    const NodeRecord& nodeRecord = _nodeRecords.at(ar.owner);
+    if (nodeHasConnections(nodeRecord))
+    {
+        std::cerr << "[SceneGraph::setUnpluggedInputAttrData] Can not convert node attribute data type because the node has connections" << std::endl;
+        return false;
+    }
+    INodeCompute& nodeCompute = *_nodeTypeMap[nodeRecord.typeID];
+    DataStore dStore(_attributeRecords, _dataSlots);
+    assert(nodeCompute.changeAttributeDataType(nodeRecord, dataType, attrID, dStore) and
+        "Failed to convert the attributes data type");
     ds.writeRawBytes(data);
     return true;
 }
@@ -573,7 +689,7 @@ NDESC uint64_t SceneGraph::getAttrComputeCode(const AttrID aid) const
 {
     const AttributeRecord& ar = _attributeRecords[aid];
     if (not ar.hasInputSources())
-        return _dataSlots[aid].version;
+        return _dataSlots[aid].version();
 
     const AttrID uid = ar.upstream;
     assert(isValidAttrID(uid));
@@ -582,9 +698,9 @@ NDESC uint64_t SceneGraph::getAttrComputeCode(const AttrID aid) const
     {
         return id == aid;
     };
+    // connections must be bi-directional
     assert(std::ranges::any_of(upstreamAttrRecord.downstream, matchUpIdToDownID));
-    const auto& [_, version] = _dataSlots[uid];
-    return version;
+    return _dataSlots[uid].version();
 }
 
 void SceneGraph::updateNodeAttrVersion(NodeRecord& nodeRecord) const
@@ -594,9 +710,9 @@ void SceneGraph::updateNodeAttrVersion(NodeRecord& nodeRecord) const
         const AttrID aid = nodeRecord.inputAttrIDs[attrIndex];
         const AttributeRecord& ar = _attributeRecords[aid];
         if (ar.upstream == kInvalidAttr)
-            nodeRecord.lastSeenVersions[attrIndex] = _dataSlots[aid].version;
+            nodeRecord.lastSeenVersions[attrIndex] = _dataSlots[aid].version();
         else
-            nodeRecord.lastSeenVersions[attrIndex] =  _dataSlots[ar.upstream].version;
+            nodeRecord.lastSeenVersions[attrIndex] =  _dataSlots[ar.upstream].version();
     }
 }
 
@@ -613,61 +729,47 @@ bool SceneGraph::nodeNeedsCompute(const NodeRecord& node) const
     return false;
 }
 
-void SceneGraph::rebuildEvaluationOrder()
+NDESC bool SceneGraph::nodeHasConnections(const NodeRecord& node) const
 {
-    std::unordered_map<NodeID, int16_t> inDegMap;
-    std::queue<NodeID> topoOrderQueue;
-    uint32_t nodeCount = 0;
-    for (NodeID nid = 0; nid < _nodeRecords.size(); nid++)
+    assert(not node.isTombstone());
+    const auto hasSourcePred = [this](const AttrID aid) -> bool
     {
-        const NodeRecord& nRec = _nodeRecords[nid];
-        if (nRec.isTombstone())
-            continue;
+        const AttributeRecord& ar = _attributeRecords[aid];
+        return ar.hasSources();
+    };
+    return std::ranges::any_of(node.inputAttrIDs, hasSourcePred) or
+        std::ranges::any_of(node.outputAttrIDs, hasSourcePred);
+}
 
-        nodeCount++;
-        assert(nRec.inputAttrIDs.size() < std::numeric_limits<int16_t>::max());
-        int16_t upstreamDeg = 0;
-        for (const AttrID aid : nRec.inputAttrIDs)
-        {
-            if (hasUpstreamInput(aid))
-                upstreamDeg++;
-        }
-        inDegMap.insert({nid, upstreamDeg});
-        if (upstreamDeg == 0)
-            topoOrderQueue.emplace(nid);
-    }
-    // It's possible for 0 nodes to have an in-degree of 0. This is recoverable, however, I do not attempt this now.
-    // TODO: recover from missing topological island error
-    // For each topological island, there should be at least 1 node present (but not necessarily 1).
-    assert(not topoOrderQueue.empty() && "When attempting to rebuild evaluation order, 0 nodes had a in-degree of 0.");
-
-    _evaluationOrder.clear();
-    while (not topoOrderQueue.empty())
+std::string SceneGraph::connectionQueryMsg(const GraphConnectionQueryInfo connectionQueryInfo,
+    const AttrID outputAttr, const AttrID inputAttr) const
+{
+    switch (connectionQueryInfo)
     {
-        const NodeID nid = topoOrderQueue.front();
-        topoOrderQueue.pop();
-        _evaluationOrder.push_back(nid);
-
-        const NodeRecord& nRec = _nodeRecords[nid];
-        assert(not nRec.isTombstone());
-        for (const AttrID attrID : nRec.outputAttrIDs)
+        case GraphConnectionQueryInfo::InvalidInputAttr:
+            return std::format("Invalid Input Attr : {}", inputAttr);
+        case GraphConnectionQueryInfo::InvalidOutputAttr:
+            return std::format("Invalid Output Attr : {}", outputAttr);
+        case GraphConnectionQueryInfo::AttributeTypeMismatch:
         {
-            const AttributeRecord& attrRec = _attributeRecords[attrID];
-            for (const AttrID dsID : attrRec.downstream)
-            {
-                assert(isValidAttrID(dsID));
-                const NodeID downstreamOwner = _attributeRecords[dsID].owner;
-                const auto fitr = inDegMap.find(downstreamOwner);
-                assert(fitr != inDegMap.end() and fitr->second != 0);
-                fitr->second--;
-                if (fitr->second == 0)
-                    topoOrderQueue.push(downstreamOwner);
-            }
+            const DataSlot& inputDS = _dataSlots.at(inputAttr);
+            const AttributeDataType inputDataType = inputDS.getConcreteType();
+            const DataSlot& outputDS = _dataSlots.at(outputAttr);
+            const AttributeDataType outputDataType = outputDS.getConcreteType();
+            return std::format("Attribute Type Mismatch; Input Type: {} ; Output Type: {}",
+                attrDataTypeStr(inputDataType), attrDataTypeStr(outputDataType));
         }
+        case GraphConnectionQueryInfo::HasDifferentConnection:
+            return std::format("Input attribute already has a connection");
+        case GraphConnectionQueryInfo::WillFormCycle:
+            return std::format("Connecting output attribute to input attribute would result in cycle.");
+        case GraphConnectionQueryInfo::CanConnect:
+            return std::format("Output Attr -> Input Attr CAN BE CONNECTED");
+        case GraphConnectionQueryInfo::IsConnected:
+            return std::format("Output Attr -> Input Attr CONNECTED");
+        default:
+            throw std::runtime_error("bad connection query");
     }
-    assert(_evaluationOrder.size() == nodeCount && "Not every node is in the evaluation order vector. "
-                                                   "This means some nodes could not be computed.");
-    _topoChanged = false;
 }
 
 END_NAMESPACE

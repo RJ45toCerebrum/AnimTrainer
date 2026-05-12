@@ -8,6 +8,7 @@ static constexpr std::string_view kLeftOperandName("LeftOperand");
 static constexpr std::string_view kRightOperandName("RightOperand");
 static constexpr std::string_view kOutputAttrName("Output");
 
+
 void MulOp::compute(const NodeRecord& nodeRecord, DataStore& dStore)
 {
     const AttrID leftOperandAttrID = nodeRecord.inputAttrIDs.at(0);
@@ -28,13 +29,18 @@ void MulOp::compute(const NodeRecord& nodeRecord, DataStore& dStore)
 
 void MulOp::initDataSlotDefaultValue(DataSlot& dataSlot, const AttributeDescriptor& attrDescriptor) const
 {
-    assert(attrDescriptor.type == AttributeDataType::Float);
-    constexpr std::array defaultBuffer = {0.0f};
-    dataSlot.writeAsSpan<float>(defaultBuffer);
+    // in the case of MulOp, the only supported type is Float
+    assert(attrDescriptor.supportedTypes == AttributeDataType::Float);
+    dataSlot.updateConcreteType(AttributeDataType::Float);
 }
 
+bool MulOp::changeAttributeDataType(const NodeRecord& nodeRecord,
+    AttributeDataType concreteType, AttrID inputAttr, DataStore& dStore)
+{
+    return false;
+}
 
-constexpr std::span<const AttributeDescriptor> MulOp::inputAttrSchema() const
+const std::span<const AttributeDescriptor> MulOp::inputAttrSchema() const
 {
     static constexpr AttributeDescriptor kLeftOperandAttrDescriptor(
         kLeftOperandName, AttributeDataType::Float, AttributeDirection::Input);
@@ -44,9 +50,10 @@ constexpr std::span<const AttributeDescriptor> MulOp::inputAttrSchema() const
     return kInputAttrs;
 }
 
-constexpr std::span<const AttributeDescriptor> MulOp::outputAttrSchema() const
+const std::span<const AttributeDescriptor> MulOp::outputAttrSchema() const
 {
-    static constexpr AttributeDescriptor kOutputAttrDescriptor(kOutputAttrName, AttributeDataType::Float, AttributeDirection::Output);
+    static constexpr AttributeDescriptor kOutputAttrDescriptor(
+        kOutputAttrName, AttributeDataType::Float, AttributeDirection::Output);
     static constexpr std::array kOutputAttrs = {kOutputAttrDescriptor};
     return kOutputAttrs;
 }
@@ -55,11 +62,11 @@ bool MulOp::alwaysCompute() const
 {
     return false;
 }
-constexpr std::string_view MulOp::nodeName() const
+const std::string_view MulOp::nodeName() const
 {
     return kNodeName;
 }
-constexpr NodeTypeID MulOp::nodeTypeID() const
+const NodeTypeID MulOp::nodeTypeID() const
 {
     return kNodeTypeId;
 }
