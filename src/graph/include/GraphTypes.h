@@ -12,10 +12,10 @@
 #include <span>
 #include <vector>
 #include <memory_resource>
-#include <format>
 
 #include "ATMath.h"
 #include "scene/include/ATAttribute.h"
+
 
 START_NAMESPACE(ATGraph)
 
@@ -29,6 +29,30 @@ using GraphDataAllocator = std::pmr::unsynchronized_pool_resource;
 constexpr NodeID kInvalidNodeID = 0;
 constexpr NodeTypeID kInvalidNodeTypeID = 0;
 constexpr AttrID kInvalidAttr = std::numeric_limits<AttrID>::max();
+
+
+// at the time of writing MSVC STL has not implemented: std::is_implicit_lifetime<T>
+// So I followed this paper: https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2022/p2674r1.pdf
+// This is important as DataSlot::prepareWrite returns a std::span<T> that the caller writes into.
+// This is valid for 2020 and greater with implicit lifetime types, but is a UB in C++17.
+template<typename T>
+constexpr bool has_implicit_lifetime_v =
+    std::is_scalar_v<T>    or
+    std::is_aggregate_v<T> or
+    (
+        std::is_trivially_destructible_v<T>           and
+        (std::is_trivially_default_constructible_v<T> or
+        std::is_trivially_copy_constructible_v<T>     or
+        std::is_trivially_move_constructible_v<T>)
+    );
+
+/// TODO: finish
+template<typename T>
+concept AttributeTypeConcept =
+    has_implicit_lifetime_v<T> and
+    (std::same_as<T, bool> || std::same_as<T, float> || std::same_as<T, int> ||
+    std::same_as<T, glm::vec2> || std::same_as<T, glm::vec3> || std::same_as<T, glm::vec4>);
+
 
 enum class AttributeDirection : uint8_t
 {
@@ -55,20 +79,11 @@ constexpr AttributeDataType operator|(const AttributeDataType lhs, const Attribu
     return static_cast<AttributeDataType>(lhsAttrID | rhsAttrID);
 }
 
-inline bool isConcreteType(const AttributeDataType attrType)
-{
-    const auto attrTypeFlags = static_cast<uint64_t>(attrType);
-    return (attrTypeFlags & (attrTypeFlags - 1)) == 0;
-}
 
-inline bool isConcreteTypeSupported(const AttributeDataType supportedTypeFlags, const AttributeDataType concreteType)
-{
-    const auto typeFlags = static_cast<uint64_t>(supportedTypeFlags);
-    const auto attrTypeFlags = static_cast<uint64_t>(concreteType);
-    assert(isConcreteType(concreteType) and
-        "[isTypeSupported] attrType must only have one flag set to be valid");
-    return (typeFlags & attrTypeFlags) != 0;
-}
+bool isConcreteType(AttributeDataType attrType);
+bool isConcreteTypeSupported(AttributeDataType supportedTypeFlags, AttributeDataType concreteType);
+std::size_t sizeFromType(AttributeDataType DT);
+void writeDefaultValue(AttributeDataType dataType, std::span<std::byte> byteBuffer);
 
 // TODO: finish
 constexpr std::string_view attrDataTypeStr(const AttributeDataType type)
@@ -130,12 +145,6 @@ consteval AttributeDataType enumFromAttrType()
     throw std::exception("Type T not implemented yet");
 }
 
-/// TODO: finish
-template<typename T>
-concept AttributeTypeConcept =
-    std::same_as<T, bool> || std::same_as<T, float> || std::same_as<T, int> ||
-    std::same_as<T, glm::vec2> || std::same_as<T, glm::vec3> || std::same_as<T, glm::vec4>;
-
 template <AttributeTypeConcept T>
 void assertAlignment(const std::vector<std::byte>& buffer)
 {
@@ -144,83 +153,6 @@ void assertAlignment(const std::vector<std::byte>& buffer)
     const auto addr = reinterpret_cast<std::uintptr_t>(buffer.data());
     assert(addr % alignof(T) == 0 and "Vector data is misaligned for the requested type.");
 }
-
-inline std::size_t sizeFromType(const AttributeDataType DT)
-{
-    assert(isConcreteType(DT));
-    if (DT == AttributeDataType::Bool)
-        return sizeof(bool);
-    if (DT == AttributeDataType::Float)
-        return sizeof(float);
-    if (DT == AttributeDataType::Int)
-        return sizeof(int);
-    if (DT == AttributeDataType::Vec2)
-        return sizeof(glm::vec2);
-    if (DT == AttributeDataType::Vec3)
-        return sizeof(glm::vec3);
-    if (DT == AttributeDataType::Vec4)
-        return sizeof(glm::vec4);
-    if (DT == AttributeDataType::Quaternion)
-        return sizeof(glm::quat);
-    if (DT == AttributeDataType::Transform)
-        return sizeof(ATMath::Transform);
-
-    throw std::exception("Type T not implemented yet");
-}
-
-inline void writeDefaultValue(const AttributeDataType dataType, const std::span<std::byte> byteBuffer)
-{
-    const std::size_t size = sizeFromType(dataType);
-    assert(byteBuffer.size_bytes() == size);
-    switch (dataType)
-    {
-        case AttributeDataType::Bool:
-        {
-            constexpr bool defaultValue = false;
-            std::memcpy(byteBuffer.data(), &defaultValue, size);
-            break;
-        }
-        case AttributeDataType::Float:
-        {
-            constexpr float defaultValueFloat = 0.0f;
-            std::memcpy(byteBuffer.data(), &defaultValueFloat, size);
-            break;
-        }
-        case AttributeDataType::Int:
-        {
-            constexpr int defaultValueFloat = 0;
-            std::memcpy(byteBuffer.data(), &defaultValueFloat, size);
-            break;
-        }
-        case AttributeDataType::Vec2:
-        {
-            constexpr glm::vec2 defaultValueFloat(0.0f,0.0f);
-            std::memcpy(byteBuffer.data(), &defaultValueFloat, size);
-            break;
-        }
-        case AttributeDataType::Vec3:
-        {
-            constexpr glm::vec3 defaultValueFloat(0.0f,0.0f,0.0f);
-            std::memcpy(byteBuffer.data(), &defaultValueFloat, size);
-            break;
-        }
-        case AttributeDataType::Vec4:
-        {
-            constexpr glm::vec4 defaultValueFloat(0.0f,0.0f,0.0f,0.0f);
-            std::memcpy(byteBuffer.data(), &defaultValueFloat, size);
-            break;
-        }
-        case AttributeDataType::Quaternion:
-        {
-            constexpr glm::quat identity = glm::quat_identity<float, glm::qualifier::defaultp>();
-            std::memcpy(byteBuffer.data(), &identity, size);
-            break;
-        }
-        default:
-            throw std::exception("Type T not implemented yet");
-    }
-}
-
 
 
 /// Attributes are a fundamental component to the graph.
@@ -240,82 +172,18 @@ struct AttributeRecord final
     // no code should ever rely on the order of this vector.
     std::vector<AttrID> downstream;
 
-    NDESC bool isTombstone() const
-    {
-        return owner == kInvalidNodeID;
-    }
-    NDESC bool isInputAttr() const
-    {
-        assert(not isTombstone());
-        return direction == AttributeDirection::Input;
-    }
-    NDESC bool isOutputAttr() const
-    {
-        assert(not isTombstone());
-        return direction == AttributeDirection::Output;
-    }
-    NDESC bool hasSources() const
-    {
-        assert(not isTombstone());
-        if (direction == AttributeDirection::Input)
-            return upstream != kInvalidAttr;
-        return not downstream.empty();
-    }
+    NDESC bool isTombstone() const;
+    NDESC bool isInputAttr() const;
+    NDESC bool isOutputAttr() const;
+    NDESC bool hasSources() const;
     /// only returns true IF input attr and is plugged
-    NDESC bool hasInputSources() const
-    {
-        assert(not isTombstone());
-        if (not isInputAttr())
-            return false;
-        // an input attribute should never downstream plugs
-        assert(downstream.empty());
-        return upstream != kInvalidAttr;
-    }
+    NDESC bool hasInputSources() const;
     /// only returns true IF output attr and is plugged into input attr downstream.
-    NDESC bool hasOutputSources() const
-    {
-        assert(not isTombstone());
-        if (not isOutputAttr())
-            return false;
-        // an output attribute should never have upstream plugged
-        assert(upstream == kInvalidAttr);
-        return not downstream.empty();
-    }
-    NDESC bool supportsConcreteType(const AttributeDataType concreteType) const
-    {
-        return isConcreteTypeSupported(supportedTypes, concreteType);
-    }
-
-    NDESC auto findOutputSource(const AttrID attrID) const -> std::vector<unsigned>::const_iterator
-    {
-        assert(not isTombstone());
-        if (not isOutputAttr())
-            return downstream.end();
-
-        // should never have upstream and downstream on same attr.
-        assert(upstream == kInvalidAttr);
-        const auto matchAttrID = [attrID](const AttrID downstreamInputAttrs) -> bool
-        {
-            // there should never be invalid attr ids in downstream
-            assert(downstreamInputAttrs != kInvalidAttr);
-            return attrID == downstreamInputAttrs;
-        };
-        return std::ranges::find_if(downstream, matchAttrID);
-    }
-
-    void removeOutputSourceChecked(const AttrID inputAttrID)
-    {
-        assert(isOutputAttr());
-        const auto fitr = findOutputSource(inputAttrID);
-        assert(fitr != downstream.end());
-        downstream.erase(fitr);
-    }
-    void invalidate()
-    {
-        owner = kInvalidNodeID;
-        upstream = kInvalidAttr;
-        downstream.clear();
-    }
+    NDESC bool hasOutputSources() const;
+    NDESC bool supportsConcreteType(AttributeDataType concreteType) const;
+    NDESC auto findOutputSource(AttrID attrID) const -> std::vector<unsigned>::const_iterator;
+    void removeOutputSourceChecked(AttrID inputAttrID);
+    void invalidate();
     // TODO: toString
 };
 
@@ -334,27 +202,9 @@ struct NodeRecord final
     // lastSeenVersions.size() must stay equal to inputAttrIDs.size()
     std::vector<uint64_t> lastSeenVersions;
 
-    NDESC bool isTombstone() const
-    {
-        return typeID == kInvalidNodeTypeID;
-    }
-    NDESC int getAttrIndex(const AttrID attrID) const
-    {
-        assert(not isTombstone());
-        for (int i = 0; i < inputAttrIDs.size(); ++i)
-        {
-            if (inputAttrIDs[i] == attrID)
-                return i;
-        }
-        return -1;
-    }
-    void invalidate()
-    {
-        typeID = kInvalidNodeTypeID;
-        inputAttrIDs.clear();
-        outputAttrIDs.clear();
-        lastSeenVersions.clear();
-    }
+    NDESC bool isTombstone() const;
+    NDESC int getAttrIndex(AttrID attrID) const;
+    void invalidate();
     // TODO: toString
 };
 
@@ -396,51 +246,13 @@ class DataSlot final
     AttributeDataType _concreteType = AttributeDataType::Bool;
 
 public:
-    // we can change the type of the stored data.
-    // However, this must be done very carefully. No connections to the node are allowed to do type changes.
-    // Review ATGraph for more details. Nodes should call this in initDataSlotDefaultValue
-    void updateConcreteType(const AttributeDataType concreteType)
-    {
-        assert(isConcreteType(concreteType) and
-            "[DataSlot] concrete type must only have one flag set to be valid");
-        _concreteType = concreteType;
-        _bytes.clear();
-        _bytes.resize(sizeFromType(_concreteType));
-        writeDefaultValue(_concreteType, _bytes);
-    }
-
-    void updateVersion(const uint64_t version)
-    {
-        _version = version;
-    }
-
-    void initDefaultValue()
-    {
-        _bytes.resize(sizeFromType(_concreteType));
-        writeDefaultValue(_concreteType, _bytes);
-    }
-
-    NDESC AttributeDataType getConcreteType() const
-    {
-        return _concreteType;
-    }
-
-    NDESC uint64_t version() const
-    {
-        return _version;
-    }
-
-    NDESC std::size_t bytesAllocated() const
-    {
-        return _bytes.size();
-    }
-
-    void freeMemory()
-    {
-        _bytes.clear();
-        _bytes.shrink_to_fit();
-    }
-
+    void updateConcreteType(AttributeDataType concreteType);
+    void updateVersion(uint64_t version);
+    void initDefaultValue();
+    NDESC AttributeDataType getConcreteType() const;
+    NDESC uint64_t version() const;
+    NDESC std::size_t bytesAllocated() const;
+    void freeMemory();
 
     template<AttributeTypeConcept T>
     std::span<const T> readAsSpan() const
@@ -475,10 +287,10 @@ public:
         _version++;
     }
 
-    // TODO: add unit test for this as this is on the sketchy side.
     template<AttributeTypeConcept T>
     std::span<T> prepareWrite(const size_t count)
     {
+        // below is only valid for implicit lifetime types (C++ >= 20)
         assertAlignment<T>(_bytes);
         assert(_concreteType == enumFromAttrType<T>());
         _bytes.resize(count * sizeof(T));
@@ -515,6 +327,10 @@ public:
     DataStore(const std::span<AttributeRecord> attrs, const std::span<DataSlot> dataSlots)
         : _attrs(attrs), _data(dataSlots)
     {}
+
+    void updateAttributeType(AttrID aid, AttributeDataType dataType) const;
+    void initDefaultValue(AttrID aid) const;
+    NDESC AttributeDataType getConcreteType(AttrID aid) const;
 
     template<AttributeTypeConcept T>
     std::span<const T> read(const AttrID aid) const
@@ -564,25 +380,6 @@ public:
     {
         DataSlot& ds = _data[aid];
         return ds.prepareWrite<T>(count);
-    }
-
-    void updateAttributeType(const AttrID aid, const AttributeDataType dataType) const
-    {
-        // graph should have verified the type was supported before getting here.
-        assert(isConcreteTypeSupported(_attrs[aid].supportedTypes, dataType));
-        DataSlot& ds = _data[aid];
-        ds.updateConcreteType(dataType);
-    }
-
-    void initDefaultValue(const AttrID aid) const
-    {
-        DataSlot& ds = _data[aid];
-        ds.initDefaultValue();
-    }
-
-    NDESC AttributeDataType getConcreteType(const AttrID aid) const
-    {
-        return _data[aid].getConcreteType();
     }
 };
 

@@ -1,5 +1,6 @@
 // Created by Tyler on 5/2/2026.
 
+#include <type_traits>
 #include <numeric>
 #include <gtest/gtest.h>
 #include <print>
@@ -20,6 +21,7 @@ using ATGraph::AttrID;
 using ATGraph::AttributeDataType;
 using ATGraph::JsonNodeGraphData;
 using ATGraph::JsonNodeConnectionData;
+
 
 // any logic that requires inspecting the internal state of the graph must exist directly in this class.
 class GraphTestFixture : public ::testing::Test
@@ -86,6 +88,20 @@ std::vector<float> generateRandomFloats(const size_t count)
     std::uniform_real_distribution dis(0.0f, 10.0f);
 
     std::vector<float> result;
+    result.reserve(count);
+    for (size_t i = 0; i < count; ++i)
+        result.push_back(dis(gen));
+
+    return result;
+}
+
+std::vector<int> generateRandomInts(const size_t count)
+{
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<int> dis(1,100);
+
+    std::vector<int> result;
     result.reserve(count);
     for (size_t i = 0; i < count; ++i)
         result.push_back(dis(gen));
@@ -251,7 +267,108 @@ TEST_F(GraphTestFixture, DetectCycle)
         tailNodeHandle.fromNodeAttributeIndex(0, ATGraph::AttributeDirection::Output);
     const AttrID outputAttrID = outputAttrIDOpt.value();
 
-    EXPECT_FALSE(graphRef.connect(outputAttrID, inputAttrID) == GraphConnectionQueryInfo::WillFormCycle);
+    EXPECT_TRUE(graphRef.connect(outputAttrID, inputAttrID) == GraphConnectionQueryInfo::WillFormCycle);
 }
+
+TEST_F(GraphTestFixture, DataSlot)
+{
+    EXPECT_TRUE(_graphInstance.has_value());
+
+    DataSlot testDataSlot;
+    // bool
+    {
+        testDataSlot.updateConcreteType(AttributeDataType::Bool);
+        EXPECT_TRUE(testDataSlot.getConcreteType() == AttributeDataType::Bool);
+        const std::span<const bool> data = testDataSlot.readAsSpan<bool>();
+        EXPECT_TRUE(data.size() == 1);
+
+        EXPECT_TRUE(data[0] == false);
+
+        std::span<bool> writeBuffer = testDataSlot.prepareWrite<bool>(3);
+        EXPECT_TRUE(writeBuffer.size() == 3);
+        writeBuffer[0] = false;
+        writeBuffer[1] = true;
+        writeBuffer[2] = true;
+
+        const std::span<const bool> boolData = testDataSlot.readAsSpan<bool>();
+        EXPECT_TRUE(boolData.size() == 3);
+        EXPECT_TRUE(boolData[0] == false);
+        EXPECT_TRUE(boolData[1] == true);
+        EXPECT_TRUE(boolData[2] == true);
+    }
+    // float
+    {
+        testDataSlot.updateConcreteType(AttributeDataType::Float);
+        EXPECT_FALSE(testDataSlot.getConcreteType() == AttributeDataType::Bool);
+        EXPECT_TRUE(testDataSlot.getConcreteType() == AttributeDataType::Float);
+        const std::span<const float> data = testDataSlot.readAsSpan<float>();
+        EXPECT_TRUE(data.size() == 1);
+        EXPECT_TRUE(data[0] == 0.0f);
+
+        const auto rfs = generateRandomFloats(7);
+        std::span<float> writeBuffer = testDataSlot.prepareWrite<float>(rfs.size());
+        EXPECT_TRUE(writeBuffer.size() == rfs.size());
+        for (int i = 0; i < rfs.size(); i++)
+            writeBuffer[i] = rfs.at(i);
+
+        const std::span<const float> readData = testDataSlot.readAsSpan<float>();
+        EXPECT_TRUE(readData.size() == rfs.size());
+        for (int i = 0; i < rfs.size(); i++)
+            EXPECT_TRUE(readData[i] == rfs.at(i));
+    }
+
+    // int
+    {
+        testDataSlot.updateConcreteType(AttributeDataType::Int);
+        EXPECT_TRUE(testDataSlot.getConcreteType() == AttributeDataType::Int);
+        const std::span<const int> data = testDataSlot.readAsSpan<int>();
+        EXPECT_TRUE(data.size() == 1);
+        EXPECT_TRUE(data[0] == 0);
+
+        const auto ris = generateRandomInts(7);
+        std::span<int> writeBuffer = testDataSlot.prepareWrite<int>(ris.size());
+        EXPECT_TRUE(writeBuffer.size() == ris.size());
+        for (int i = 0; i < ris.size(); i++)
+            writeBuffer[i] = ris.at(i);
+
+        const std::span<const int> readData = testDataSlot.readAsSpan<int>();
+        EXPECT_TRUE(readData.size() == ris.size());
+        for (int i = 0; i < ris.size(); i++)
+            EXPECT_TRUE(readData[i] == ris.at(i));
+    }
+
+    // Vec3
+    {
+        testDataSlot.updateConcreteType(AttributeDataType::Vec3);
+        EXPECT_TRUE(testDataSlot.getConcreteType() == AttributeDataType::Vec3);
+        const std::span<const glm::vec3> data = testDataSlot.readAsSpan<glm::vec3>();
+        EXPECT_TRUE(data.size() == 1);
+        EXPECT_TRUE(data[0] == glm::vec3(0.0f, 0.0f, 0.0f));
+
+        constexpr int vectorCount = 7;
+        const auto rfs = generateRandomFloats(vectorCount * 3);
+        std::span<glm::vec3> writeBuffer = testDataSlot.prepareWrite<glm::vec3>(vectorCount);
+        EXPECT_TRUE(writeBuffer.size() == rfs.size() / 3);
+        for (int i = 0; i < vectorCount; i++)
+        {
+            glm::vec3& v = writeBuffer[i];
+            v.x = rfs[(i * 3) + 0];
+            v.y = rfs[(i * 3) + 1];
+            v.z = rfs[(i * 3) + 2];
+        }
+
+        const std::span<const glm::vec3> readData = testDataSlot.readAsSpan<glm::vec3>();
+        EXPECT_TRUE(readData.size() == rfs.size() / 3);
+        for (int i = 0; i < vectorCount; i++)
+        {
+            const glm::vec3 v = readData[i];
+            EXPECT_TRUE(
+                v.x == rfs.at((i * 3) + 0) and
+                v.y == rfs.at((i * 3) + 1) and
+                v.z == rfs.at((i * 3) + 2));
+        }
+    }
+}
+
 
 END_NAMESPACE

@@ -6,6 +6,7 @@ add_library(ATGraph STATIC
         ${CMAKE_CURRENT_SOURCE_DIR}/impl/Nodes/Math/SinCosOp.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/impl/Nodes/Math/MulOp.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/impl/Nodes/Math/AddNode.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/impl/GraphTypes.cpp
 )
 target_include_directories(ATGraph PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_include_directories(ATGraph PRIVATE "${CMAKE_SOURCE_DIR}/src")
