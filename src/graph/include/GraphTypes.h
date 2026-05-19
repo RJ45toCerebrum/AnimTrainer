@@ -2,19 +2,15 @@
 #pragma once
 
 #include "common.h"
-
-#include <glm/vec3.hpp>
+#include "ATMath.h"
 
 #include <type_traits>
-#include <algorithm>
 #include <cstdint>
 #include <limits>
 #include <span>
 #include <vector>
 #include <memory_resource>
-
-#include "ATMath.h"
-#include "scene/include/ATAttribute.h"
+#include <functional>
 
 
 START_NAMESPACE(ATGraph)
@@ -69,11 +65,21 @@ enum class AttributeDataType : uint64_t
     Vec3            = 1 << 4,
     Vec4            = 1 << 5,
     Quaternion      = 1 << 6,
-    Transform       = 1 << 7
+    Transform       = 1 << 7,
+    Invalid         = static_cast<uint64_t>(1) << 63,
 };
+
+constexpr bool hasInvalidFlag(const AttributeDataType dataTypeFlags)
+{
+    constexpr auto invalidFlag = static_cast<uint64_t>(AttributeDataType::Invalid);
+    const auto dataTypes = static_cast<uint64_t>(dataTypeFlags);
+    return (dataTypes & invalidFlag) != 0;
+}
 
 constexpr AttributeDataType operator|(const AttributeDataType lhs, const AttributeDataType rhs)
 {
+    if (hasInvalidFlag(lhs) or hasInvalidFlag(rhs))
+        return AttributeDataType::Invalid;
     const auto lhsAttrID = static_cast<uint64_t>(lhs);
     const auto rhsAttrID = static_cast<uint64_t>(rhs);
     return static_cast<AttributeDataType>(lhsAttrID | rhsAttrID);
@@ -165,7 +171,7 @@ struct AttributeRecord final
     // This attribute record does not need to store its own ID because of this.
     NodeID owner = kInvalidNodeID;
     AttributeDirection direction = AttributeDirection::Input;
-    AttributeDataType supportedTypes = AttributeDataType::Float;
+    AttributeDataType supportedTypes = AttributeDataType::Invalid;
     // upstream only valid for input attrs ; downstream only valid for output attrs
     // I will save space later, but for first iteration making one invalid is fine
     AttrID upstream = kInvalidAttr;
@@ -218,8 +224,8 @@ struct AttributeDescriptor final
 
 struct AttrInfo final
 {
-    AttrID attrID;
-    AttributeDataType supportedTypes;
+    AttrID attrID = kInvalidAttr;
+    AttributeDataType supportedTypes = AttributeDataType::Invalid;
 };
 
 // for every attribute there is a DataSlot entry in the graph. meaning,
@@ -243,15 +249,17 @@ class DataSlot final
     // If there is a mismatch between this value and lastSeenVersions this means the graph needs recompute.
     uint64_t _version = 0;
     // this represents the actual data being stored. It must have only one flag set to be considered valid.
-    AttributeDataType _concreteType = AttributeDataType::Bool;
+    AttributeDataType _concreteType = AttributeDataType::Invalid;
 
 public:
     void updateConcreteType(AttributeDataType concreteType);
     void updateVersion(uint64_t version);
     void initDefaultValue();
+    void writeRawBytes(std::span<const std::byte> data);
     NDESC AttributeDataType getConcreteType() const;
     NDESC uint64_t version() const;
     NDESC std::size_t bytesAllocated() const;
+    NDESC std::size_t elementCount() const;
     void freeMemory();
 
     template<AttributeTypeConcept T>
@@ -279,12 +287,6 @@ public:
         const auto* begin = reinterpret_cast<const std::byte*>(values.data());
         _bytes.assign(begin, begin + values.size_bytes());
         ++_version;
-    }
-
-    void writeRawBytes(const std::span<const std::byte> data)
-    {
-        _bytes.assign(data.begin(), data.end());
-        _version++;
     }
 
     template<AttributeTypeConcept T>
@@ -329,8 +331,12 @@ public:
     {}
 
     void updateAttributeType(AttrID aid, AttributeDataType dataType) const;
+    void writeRawBytes(AttrID aid, std::span<const std::byte> data) const;
     void initDefaultValue(AttrID aid) const;
     NDESC AttributeDataType getConcreteType(AttrID aid) const;
+    NDESC std::size_t elementCount(AttrID aid) const;
+    NDESC const AttributeRecord& getAttributeRecord(AttrID aid) const;
+    NDESC const DataSlot& getDataSlot(AttrID aid) const;
 
     template<AttributeTypeConcept T>
     std::span<const T> read(const AttrID aid) const

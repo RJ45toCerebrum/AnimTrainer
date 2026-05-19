@@ -1,6 +1,5 @@
 // Created by Tyler on 5/2/2026.
 
-#include <type_traits>
 #include <numeric>
 #include <gtest/gtest.h>
 #include <print>
@@ -9,19 +8,21 @@
 
 #include "Graph.h"
 #include "GraphJson.h"
+#include "Nodes/RegisterNodeTypes.h"
 #include "Nodes/Math/AddNode.h"
+#include "Nodes/Math/VectorOp.h"
 
 START_NAMESPACE(ATGraph)
 
 using ATGraph::SceneGraph;
 using ATGraph::NodeHandle;
 using ATGraph::AddNode;
+using ATGraph::VectorOp;
 using ATGraph::AttrInfo;
 using ATGraph::AttrID;
 using ATGraph::AttributeDataType;
 using ATGraph::JsonNodeGraphData;
 using ATGraph::JsonNodeConnectionData;
-
 
 // any logic that requires inspecting the internal state of the graph must exist directly in this class.
 class GraphTestFixture : public ::testing::Test
@@ -35,9 +36,7 @@ protected:
         std::println("Starting graph instance...");
         _graphInstance = SceneGraph::instance();
         EXPECT_TRUE(_graphInstance.has_value());
-        // register the nodes types...
-        ATGraph::NodePtr addNodePtr = std::make_unique<AddNode>();
-        SceneGraph::registerNodeType(std::move(addNodePtr));
+        registerBuiltInNodeTypes();
     }
     void TearDown() override
     {
@@ -92,6 +91,15 @@ std::vector<float> generateRandomFloats(const size_t count)
     for (size_t i = 0; i < count; ++i)
         result.push_back(dis(gen));
 
+    return result;
+}
+std::vector<glm::vec3> generateRandomVec3s(const size_t count)
+{
+    const auto randFloats = generateRandomFloats(count * 3);
+    std::vector<glm::vec3> result;
+    result.reserve(count);
+    for (int i = 0; i < count; ++i)
+        result.emplace_back(randFloats[(i*3) + 0], randFloats[(i*3) + 1], randFloats[(i*3) + 2]);
     return result;
 }
 
@@ -370,5 +378,57 @@ TEST_F(GraphTestFixture, DataSlot)
     }
 }
 
+TEST_F(GraphTestFixture, SetUnplugAttrTest)
+{
+    const std::filesystem::path pathToTestJson = std::filesystem::path(PROJECT_ROOT_DIR) / "resources/vector_op_test_graph.json";
+    EXPECT_TRUE(std::filesystem::exists(pathToTestJson));
+    std::ifstream jsonFileStream(pathToTestJson);
+    EXPECT_TRUE(jsonFileStream.is_open());
+    const std::string jsonContent((std::istreambuf_iterator<char>(jsonFileStream)),
+        std::istreambuf_iterator<char>());
+
+    const auto graphData = ATGraph::parseGraphJSON(jsonContent);
+    SceneGraph& graphRef = _graphInstance.value();
+    EXPECT_TRUE(graphRef.buildFromGraphJson(graphData));
+
+    constexpr std::string_view vectorNodeRootNode = "VectorOp[0]";
+    constexpr std::string_view inputNodeName = "VectorOp[1]";
+    NodeHandle rootHandle = graphRef.getNodeHandle(vectorNodeRootNode);
+    EXPECT_TRUE(rootHandle.isValid());
+    NodeHandle inputNodeHandle = graphRef.getNodeHandle(inputNodeName);
+    EXPECT_TRUE(inputNodeHandle.isValid());
+
+    // set to wrong data type;
+    EXPECT_FALSE(rootHandle.setUnpluggedInputByIndex<float>(0, 0.0f));
+    // this would force type change. It should fail because there is a connection.
+    EXPECT_FALSE(rootHandle.setUnpluggedInputByIndex<int>(0, static_cast<int>(VectorOp::VectorOpType::VectorDot)));
+
+    const auto rfArr = generateRandomFloats(1);
+    const auto rVecArr = generateRandomVec3s(2);
+    EXPECT_TRUE(rootHandle.setUnpluggedInputByIndex<float>(1, rfArr[0]));
+    EXPECT_TRUE(rootHandle.setUnpluggedInputByIndex<glm::vec3>(2, rVecArr[0]));
+    EXPECT_TRUE(inputNodeHandle.setUnpluggedInputByIndex(2, rVecArr[1]));
+    const glm::vec3 expectedResult = rfArr[0] * rVecArr[0] + rVecArr[1];
+    graphRef.evaluate();
+
+    const auto outAttrIDOpt = rootHandle.fromNodeAttributeIndex(0, AttributeDirection::Output);
+    EXPECT_TRUE(outAttrIDOpt.has_value());
+    const AttrID outputAttrID = outAttrIDOpt.value();
+    const auto rawData = inputNodeHandle.getData<glm::vec3>(outputAttrID);
+    EXPECT_TRUE(rawData.size() == 1 and rawData[0] == expectedResult);
+
+    constexpr std::string_view downstreamOpNode = "VectorOp[1]";
+    NodeHandle nh = graphRef.getNodeHandle(downstreamOpNode);
+    EXPECT_TRUE(nh.isValid());
+
+    const auto inAttrIDOpt = nh.fromNodeAttributeIndex(1, AttributeDirection::Input);
+    EXPECT_TRUE(inAttrIDOpt.has_value());
+
+    const AttrID inputAttrID = inAttrIDOpt.value();
+    // below should fail because I have params swapped.
+    EXPECT_FALSE(graphRef.disconnect(inputAttrID, outputAttrID));
+    EXPECT_TRUE(graphRef.disconnect(outputAttrID, inputAttrID));
+    EXPECT_TRUE(rootHandle.setUnpluggedInputByIndex<int>(0, static_cast<int>(VectorOp::VectorOpType::VectorDot)));
+}
 
 END_NAMESPACE

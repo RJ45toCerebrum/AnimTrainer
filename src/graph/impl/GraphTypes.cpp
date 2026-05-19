@@ -1,20 +1,25 @@
 // Created by Tyler on 5/18/2026.
 #include "GraphTypes.h"
+#include "glm/gtx/quaternion.hpp"
 
 START_NAMESPACE(ATGraph)
 
 bool isConcreteType(const AttributeDataType attrType)
 {
+    if (hasInvalidFlag(attrType))
+        return false;
     const auto attrTypeFlags = static_cast<uint64_t>(attrType);
     return (attrTypeFlags & (attrTypeFlags - 1)) == 0;
 }
 
 bool isConcreteTypeSupported(const AttributeDataType supportedTypeFlags, const AttributeDataType concreteType)
 {
-    const auto typeFlags = static_cast<uint64_t>(supportedTypeFlags);
-    const auto attrTypeFlags = static_cast<uint64_t>(concreteType);
+    if (hasInvalidFlag(supportedTypeFlags) or hasInvalidFlag(concreteType))
+        return false;
     assert(isConcreteType(concreteType) and
         "[isTypeSupported] attrType must only have one flag set to be valid");
+    const auto typeFlags = static_cast<uint64_t>(supportedTypeFlags);
+    const auto attrTypeFlags = static_cast<uint64_t>(concreteType);
     return (typeFlags & attrTypeFlags) != 0;
 }
 
@@ -89,6 +94,8 @@ void writeDefaultValue(const AttributeDataType dataType, const std::span<std::by
             std::memcpy(byteBuffer.data(), &identity, size);
             break;
         }
+        case AttributeDataType::Invalid:
+            throw std::exception("Invalid flag set");
         default:
             throw std::exception("Type T not implemented yet");
     }
@@ -166,6 +173,8 @@ void AttributeRecord::invalidate()
     owner = kInvalidNodeID;
     upstream = kInvalidAttr;
     downstream.clear();
+    downstream.shrink_to_fit();
+    supportedTypes = AttributeDataType::Invalid;
 }
 
 
@@ -187,8 +196,11 @@ void NodeRecord::invalidate()
 {
     typeID = kInvalidNodeTypeID;
     inputAttrIDs.clear();
+    inputAttrIDs.shrink_to_fit();
     outputAttrIDs.clear();
+    outputAttrIDs.shrink_to_fit();
     lastSeenVersions.clear();
+    lastSeenVersions.shrink_to_fit();
 }
 
 
@@ -198,7 +210,7 @@ void NodeRecord::invalidate()
 void DataSlot::updateConcreteType(const AttributeDataType concreteType)
 {
     assert(isConcreteType(concreteType) and
-        "[DataSlot] concrete type must only have one flag set to be valid");
+        "[DataSlot] concrete type must only have one flag set to be valid and must not have Invalid flag set");
     _concreteType = concreteType;
     _bytes.clear();
     _bytes.resize(sizeFromType(_concreteType));
@@ -213,6 +225,13 @@ void DataSlot::initDefaultValue()
     _bytes.resize(sizeFromType(_concreteType));
     writeDefaultValue(_concreteType, _bytes);
 }
+void DataSlot::writeRawBytes(const std::span<const std::byte> data)
+{
+    assert(data.size() % sizeFromType(_concreteType) == 0 and
+        "[DataSlot::writeRawBytes] attempting to write partial data");
+    _bytes.assign(data.begin(), data.end());
+    _version++;
+}
 NDESC AttributeDataType DataSlot::getConcreteType() const
 {
     return _concreteType;
@@ -224,6 +243,12 @@ NDESC uint64_t DataSlot::version() const
 NDESC std::size_t DataSlot::bytesAllocated() const
 {
     return _bytes.size();
+}
+NDESC std::size_t DataSlot::elementCount() const
+{
+    const auto elementSize = sizeFromType(_concreteType);
+    assert(bytesAllocated() % elementSize == 0);
+    return bytesAllocated() / sizeFromType(_concreteType);
 }
 void DataSlot::freeMemory()
 {
@@ -239,6 +264,11 @@ void DataStore::updateAttributeType(const AttrID aid, const AttributeDataType da
     DataSlot& ds = _data[aid];
     ds.updateConcreteType(dataType);
 }
+void DataStore::writeRawBytes(const AttrID aid, const std::span<const std::byte> data) const
+{
+    DataSlot& ds = _data[aid];
+    ds.writeRawBytes(data);
+}
 void DataStore::initDefaultValue(const AttrID aid) const
 {
     DataSlot& ds = _data[aid];
@@ -247,6 +277,18 @@ void DataStore::initDefaultValue(const AttrID aid) const
 NDESC AttributeDataType DataStore::getConcreteType(const AttrID aid) const
 {
     return _data[aid].getConcreteType();
+}
+NDESC std::size_t DataStore::elementCount(const AttrID aid) const
+{
+    return _data[aid].elementCount();
+}
+NDESC const AttributeRecord& DataStore::getAttributeRecord(const AttrID aid) const
+{
+    return _attrs[aid];
+}
+NDESC const DataSlot& DataStore::getDataSlot(const AttrID aid) const
+{
+    return _data[aid];
 }
 
 END_NAMESPACE

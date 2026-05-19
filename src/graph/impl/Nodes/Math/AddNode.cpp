@@ -65,7 +65,14 @@ void AddNode::compute(const NodeRecord& nodeRecord, DataStore& dStore)
 
 void AddNode::initDataSlotDefaultValue(DataSlot& dataSlot, const AttributeDescriptor& attrDescriptor) const
 {
-    dataSlot.updateConcreteType(AttributeDataType::Float);
+    // this happens on first init. On disconnection, initDataSlotDefaultValue will get called again.
+    const AttributeDataType currentDataType = dataSlot.getConcreteType();
+    if (currentDataType == AttributeDataType::Invalid)
+    {
+        dataSlot.updateConcreteType(AttributeDataType::Float);
+        return;
+    }
+    dataSlot.initDefaultValue();
 }
 
 bool AddNode::changeAttributeDataType(const NodeRecord& nodeRecord,
@@ -77,6 +84,17 @@ bool AddNode::changeAttributeDataType(const NodeRecord& nodeRecord,
     return true;
 }
 
+bool AddNode::setUnpluggedInputAttrData(const AttrID inputAttrID, const std::span<const std::byte> data,
+    const AttributeDataType concreteType, const NodeRecord& nodeRecord, DataStore& dStore)
+{
+    assert(nodeRecord.getAttrIndex(inputAttrID) >= 0);
+    if (concreteType != dStore.getConcreteType(inputAttrID))
+        return false;
+
+    dStore.writeRawBytes(inputAttrID, data);
+    return true;
+}
+
 const std::span<const AttributeDescriptor> AddNode::inputAttrSchema() const
 {
     static constexpr AttributeDescriptor kLeftFloatAttrDesc(kLeftAttrName, kSupportedTypes, AttributeDirection::Input);
@@ -84,7 +102,6 @@ const std::span<const AttributeDescriptor> AddNode::inputAttrSchema() const
     static constexpr std::array<const AttributeDescriptor, 2> inputAttrs = {kLeftFloatAttrDesc, kRightFloatAttrDesc};
     return inputAttrs;
 }
-
 const std::span<const AttributeDescriptor> AddNode::outputAttrSchema() const
 {
     static constexpr AttributeDescriptor kOutFloatAttrDesc("Out", kSupportedTypes, AttributeDirection::Output);

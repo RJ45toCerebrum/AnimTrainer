@@ -29,15 +29,25 @@ void SinCosOp::compute(const NodeRecord& nodeRecord, DataStore& dStore)
 void SinCosOp::initDataSlotDefaultValue(DataSlot& dataSlot, const AttributeDescriptor& attrDescriptor) const
 {
     assert(attrDescriptor.supportedTypes == AttributeDataType::Float);
-    constexpr float defaultValue = 0.f;
-    constexpr std::array defaultBuffer = {defaultValue};
+    constexpr std::array defaultBuffer = {0.0f};
     dataSlot.writeAsSpan<float>(defaultBuffer);
 }
 
 bool SinCosOp::changeAttributeDataType(const NodeRecord& nodeRecord,
     const AttributeDataType concreteType, const AttrID inputAttr, DataStore& dStore)
 {
-    dStore.updateAttributeType(inputAttr, concreteType);
+    // only one support input type for this node which is float
+    assert(concreteType == AttributeDataType::Float and dStore.getConcreteType(inputAttr) == AttributeDataType::Float);
+    return true;
+}
+
+bool SinCosOp::setUnpluggedInputAttrData(const AttrID inputAttrID, const std::span<const std::byte> data,
+    const AttributeDataType concreteType, const NodeRecord& nodeRecord, DataStore& dStore)
+{
+    assert(concreteType == AttributeDataType::Float);
+    const int attrIndex = nodeRecord.getAttrIndex(inputAttrID);
+    assert(attrIndex > -1);
+    dStore.writeRawBytes(inputAttrID, data);
     return true;
 }
 
@@ -48,7 +58,6 @@ const std::span<const AttributeDescriptor> SinCosOp::inputAttrSchema() const
     static constexpr std::array kInputAttrs = {kRadiansAttrDescriptor};
     return kInputAttrs;
 }
-
 const std::span<const AttributeDescriptor> SinCosOp::outputAttrSchema() const
 {
     static constexpr std::string_view kSinAttrName("Sin");

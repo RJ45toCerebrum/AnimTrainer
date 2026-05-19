@@ -29,11 +29,17 @@ public:
     virtual void compute(const NodeRecord& nodeRecord, DataStore& dStore) = 0;
     // Some nodes need compute regardless of input (such as nodes with 0 inputs like TimeNode);
     NDESC virtual bool alwaysCompute() const = 0;
+    // THe node itself is responsible for setting its own input attribute data.
+    // This is because some inputs may require more than just setting attribute data.
+    // a good example of this is the VectorOp node.
+    // The graph will only call this IF the attribute is unplugged.
+    NDESC virtual bool setUnpluggedInputAttrData(AttrID inputAttrID, std::span<const std::byte> data,
+        AttributeDataType concreteType, const NodeRecord& nodeRecord, DataStore& dStore) = 0;
+    /// The graph will only call this when there are 0 incoming or outgoing connections to the node
     NDESC virtual bool changeAttributeDataType(const NodeRecord& nodeRecord,
         AttributeDataType concreteType, AttrID inputAttr, DataStore& dStore) = 0;
     virtual void initDataSlotDefaultValue(DataSlot& dataSlot, const AttributeDescriptor& attrDescriptor) const = 0;
-    /// NOTE: the order you return these is important. When a node compute is called
-    /// A node can identify specific attributes with an index.
+    /// NOTE: the order you return these is important. When a node compute is called A node can identify specific attributes with an index.
     /// Example: if you return {float, float, quat, transform}
     /// A node can load the quat first via: nodeRecord.inputAttrIDs[2].
     /// The graph always creates the attribute records in the order returned.

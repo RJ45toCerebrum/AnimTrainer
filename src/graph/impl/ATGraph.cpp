@@ -109,8 +109,10 @@ NodeHandle SceneGraph::createNode(const NodeTypeID typeID, const std::string_vie
 
         DataSlot newDataSlot;
         nodeCompute.initDataSlotDefaultValue(newDataSlot, iDesc);
+        // this is just a quick sanity check after a bug I found in VectorOp
+        assert(isConcreteTypeSupported(iDesc.supportedTypes, newDataSlot.getConcreteType()));
         // NOTE how I intentionally mismatch the data slot version and lastSeenVersions
-        // this is important as we want to compute to be called initially.
+        // this is important as we want to compute to be called initially
         newDataSlot.updateVersion(newNodeRecord.lastSeenVersions.back() + 1);
         _dataSlots.push_back(std::move(newDataSlot));
         assert(_attributeRecords.size() == _dataSlots.size());
@@ -130,6 +132,7 @@ NodeHandle SceneGraph::createNode(const NodeTypeID typeID, const std::string_vie
 
         DataSlot newDataSlot;
         nodeCompute.initDataSlotDefaultValue(newDataSlot, outDesc);
+        assert(isConcreteTypeSupported(outDesc.supportedTypes, newDataSlot.getConcreteType()));
         newDataSlot.updateVersion(1);
         _dataSlots.push_back(std::move(newDataSlot));
         assert(_attributeRecords.size() == _dataSlots.size());
@@ -389,7 +392,7 @@ bool SceneGraph::disconnect(const AttrID outputAttr, const AttrID inputAttr)
         return false;
     }
     DataSlot& inputAttrData = _dataSlots.at(inputAttr);
-    DataSlot& outputAttrData = _dataSlots.at(outputAttr);
+    const DataSlot& outputAttrData = _dataSlots.at(outputAttr);
 
     // IF the types do not match here, something went horribly wrong. They must match exactly.
     assert(inputAttrData.getConcreteType() == outputAttrData.getConcreteType());
@@ -400,16 +403,13 @@ bool SceneGraph::disconnect(const AttrID outputAttr, const AttrID inputAttr)
     inputAttrRec.upstream = kInvalidAttr;
     outputAttrRec.downstream.erase(fitr);
 
-    // realloc mem claimed in connect call.
+    // realloc mem claimed in connect call; No changing of types here
+    inputAttrData.initDefaultValue();
+
+    // this ensures compute is called
     NodeRecord& inputNodeRecord = _nodeRecords.at(inputAttrRec.owner);
-    const auto inputNodeFitr = _nodeTypeMap.find(inputNodeRecord.typeID);
-    assert(inputNodeFitr != _nodeTypeMap.end());
-    const INodeCompute& nodeCompute = *inputNodeFitr->second;
-    const auto inputSchema = nodeCompute.inputAttrSchema();
     const int attrIndex = inputNodeRecord.getAttrIndex(inputAttr);
     assert(attrIndex > -1);
-    nodeCompute.initDataSlotDefaultValue(inputAttrData, inputSchema[attrIndex]);
-    // this ensures compute is called for all downstream nodes.
     inputNodeRecord.lastSeenVersions[attrIndex] = inputAttrData.version() + 1;
 
     _topoChanged = true;
@@ -648,25 +648,24 @@ bool SceneGraph::setUnpluggedInputAttrData(const AttrID attrID, const AttributeD
         std::cerr << "[SceneGraph::setUnpluggedInputAttrData] The data type is not supported by the input attribute" << std::endl;
         return false;
     }
-    DataSlot& ds = _dataSlots[attrID];
-    if (ds.getConcreteType() == dataType)
-    {
-        ds.writeRawBytes(data);
-        return true;
-    }
-    // We need to convert the data slot type.
     const NodeRecord& nodeRecord = _nodeRecords.at(ar.owner);
+    INodeCompute& nodeCompute = *_nodeTypeMap[nodeRecord.typeID];
+    if (_dataSlots.at(attrID).getConcreteType() == dataType)
+    {
+        DataStore dStore(_attributeRecords, _dataSlots);
+        return nodeCompute.setUnpluggedInputAttrData(attrID, data, dataType, nodeRecord, dStore);
+    }
+    // if the type is not exactly the same, we can still set, but must convert type.
+    // to convert type, we do not allow any incoming or outgoing connections.
     if (nodeHasConnections(nodeRecord))
     {
         std::cerr << "[SceneGraph::setUnpluggedInputAttrData] Can not convert node attribute data type because the node has connections" << std::endl;
         return false;
     }
-    INodeCompute& nodeCompute = *_nodeTypeMap[nodeRecord.typeID];
     DataStore dStore(_attributeRecords, _dataSlots);
     assert(nodeCompute.changeAttributeDataType(nodeRecord, dataType, attrID, dStore) and
         "Failed to convert the attributes data type");
-    ds.writeRawBytes(data);
-    return true;
+    return nodeCompute.setUnpluggedInputAttrData(attrID, data, dataType, nodeRecord, dStore);
 }
 
 std::optional<AttrID> SceneGraph::fromNodeAttributeIndex(const NodeID nodeID, const int attrIndex, const AttributeDirection dir) const
@@ -771,5 +770,42 @@ std::string SceneGraph::connectionQueryMsg(const GraphConnectionQueryInfo connec
             throw std::runtime_error("bad connection query");
     }
 }
+
+
+#pragma region NODE_HANDLE
+
+NodeHandle::NodeHandle(const NodeID nodeID, const NodeTypeID nodeTypeID) :
+    _nodeID(nodeID), _nodeTypeID(nodeTypeID)
+{}
+NodeHandle::NodeHandle() :
+    _nodeID(kInvalidNodeID), _nodeTypeID(kInvalidNodeTypeID)
+{}
+NDESC bool NodeHandle::isValid() const
+{
+    if (_nodeID == kInvalidNodeID or _nodeTypeID == kInvalidNodeTypeID)
+        return false;
+    const SceneGraph& gr = SceneGraph::instance();
+    return gr.isValidNodeID(_nodeID);
+}
+NDESC NodeID NodeHandle::nodeID() const
+{
+    return _nodeID;
+}
+NDESC NodeTypeID NodeHandle::nodeTypeID() const
+{
+    return _nodeTypeID;
+}
+NDESC std::optional<AttrID> NodeHandle::fromNodeAttributeIndex(const int attrIndex, const AttributeDirection dir) const
+{
+    const SceneGraph& gr = SceneGraph::instance();
+    return gr.fromNodeAttributeIndex(_nodeID, attrIndex, dir);
+}
+NDESC std::vector<AttrInfo> NodeHandle::inputAttrInfo() const
+{
+    const SceneGraph& graphRef = SceneGraph::instance();
+    return graphRef.getAttrInfo(_nodeID, AttributeDirection::Input);
+}
+
+#pragma endregion
 
 END_NAMESPACE

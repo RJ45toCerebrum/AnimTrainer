@@ -1,0 +1,19 @@
+[
+  {
+    "nodeName": "VectorOp[0]",
+    "nodeTypeName": "VectorOp",
+    "connectionData" :
+    [
+      {
+        "nodeName" : "VectorOp[1]",
+        "outputAttrIndex": 0,
+        "inputAttrIndex" : 1
+      }
+    ]
+  },
+  {
+    "nodeName": "VectorOp[1]",
+    "nodeTypeName": "VectorOp",
+    "connectionData" : []
+  }
+]

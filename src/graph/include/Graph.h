@@ -115,40 +115,15 @@ class NDESC NodeHandle final
     const NodeTypeID _nodeTypeID;
 
 public:
-    NodeHandle(const NodeID nodeID, const NodeTypeID nodeTypeID) :
-        _nodeID(nodeID), _nodeTypeID(nodeTypeID)
-    {}
-    NodeHandle() :
-        _nodeID(kInvalidNodeID), _nodeTypeID(kInvalidNodeTypeID)
-    {}
-    NDESC bool isValid() const
-    {
-        if (_nodeID == kInvalidNodeID or _nodeTypeID == kInvalidNodeTypeID)
-            return false;
-        const SceneGraph& gr = SceneGraph::instance();
-        return gr.isValidNodeID(_nodeID);
-    }
-    NDESC NodeID nodeID() const
-    {
-        return _nodeID;
-    }
-    NDESC NodeTypeID nodeTypeID() const
-    {
-        return _nodeTypeID;
-    }
+    NodeHandle(NodeID nodeID, NodeTypeID nodeTypeID);
+    NodeHandle();
+    NDESC bool isValid() const;
+    NDESC NodeID nodeID() const;
+    NDESC NodeTypeID nodeTypeID() const;
     /// Maps the Attribute Index => AttrID
     /// AttrID is globally identifying ID and Attribute index is the indexer into attr arrays of node record.
-    NDESC std::optional<AttrID> fromNodeAttributeIndex(const int attrIndex, const AttributeDirection dir) const
-    {
-        const SceneGraph& gr = SceneGraph::instance();
-        return gr.fromNodeAttributeIndex(_nodeID, attrIndex, dir);
-    }
-
-    NDESC std::vector<AttrInfo> inputAttrInfo() const
-    {
-        const SceneGraph& graphRef = SceneGraph::instance();
-        return graphRef.getAttrInfo(_nodeID, AttributeDirection::Input);
-    }
+    NDESC std::optional<AttrID> fromNodeAttributeIndex(int attrIndex, AttributeDirection dir) const;
+    NDESC std::vector<AttrInfo> inputAttrInfo() const;
 
     /// NOT thread safe. This is not an issue currently, as the graph will be running on main thread where
     /// data is grabbed, BUT this will become a problem in the future.
@@ -193,8 +168,8 @@ public:
         const AttributeRecord& arec = gr.getAttrRecordUnchecked(attrID);
         // never allow setting of attribute if it does not belong to the node this handle belongs to.
         assert(arec.owner == _nodeID);
-        constexpr AttributeDataType attrType = enumFromAttrType<T>();
         const std::span<const std::byte> byteData = DataSlot::convert(data);
+        constexpr AttributeDataType attrType = enumFromAttrType<T>();
         return gr.setUnpluggedInputAttrData(attrID, attrType, byteData);
     }
 

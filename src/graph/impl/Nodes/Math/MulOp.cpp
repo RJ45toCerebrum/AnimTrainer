@@ -4,6 +4,10 @@
 
 START_NAMESPACE(ATGraph)
 
+// TODO: add more supported types for inputs; Currently only floats.
+// We should support:
+// int, float, Matrix, Transform, Quaternion
+
 static constexpr std::string_view kLeftOperandName("LeftOperand");
 static constexpr std::string_view kRightOperandName("RightOperand");
 static constexpr std::string_view kOutputAttrName("Output");
@@ -40,6 +44,16 @@ bool MulOp::changeAttributeDataType(const NodeRecord& nodeRecord,
     return false;
 }
 
+bool MulOp::setUnpluggedInputAttrData(const AttrID inputAttrID, const std::span<const std::byte> data,
+    const AttributeDataType concreteType, const NodeRecord& nodeRecord, DataStore& dStore)
+{
+    // need to support more types. But moving on for now.
+    assert(concreteType == AttributeDataType::Float);
+    assert(nodeRecord.getAttrIndex(inputAttrID) >= 0);
+    dStore.writeRawBytes(inputAttrID, data);
+    return true;
+}
+
 const std::span<const AttributeDescriptor> MulOp::inputAttrSchema() const
 {
     static constexpr AttributeDescriptor kLeftOperandAttrDescriptor(
@@ -49,7 +63,6 @@ const std::span<const AttributeDescriptor> MulOp::inputAttrSchema() const
     static constexpr std::array kInputAttrs = {kLeftOperandAttrDescriptor, kRightOperandAttrDescriptor};
     return kInputAttrs;
 }
-
 const std::span<const AttributeDescriptor> MulOp::outputAttrSchema() const
 {
     static constexpr AttributeDescriptor kOutputAttrDescriptor(

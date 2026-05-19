@@ -12,8 +12,11 @@ static constexpr std::string_view kVectorOpTypeAttrName = "VectorOpType";
 static constexpr std::string_view kLeftOperandAttrName = "LeftOperand";
 static constexpr std::string_view kRightOperandAttrName = "RightOperand";
 static constexpr std::string_view kVectorOpOutputAttrName = "VectorOpOutput";
-static constexpr AttributeDataType kSupportedOperandTypes =
-    AttributeDataType::Vec2 | AttributeDataType::Vec3 | AttributeDataType::Vec4;
+
+static constexpr int kVectorOpTypeInputIndex = 0;
+static constexpr int kVectorOpLeftOperandInputIndex = 1;
+static constexpr int kVectorOpRightOperandInputIndex = 2;
+static constexpr int kVectorOpOutputIndex = 0;
 
 
 void VectorOp::compute(const NodeRecord& nodeRecord, DataStore& dStore)
@@ -23,17 +26,11 @@ void VectorOp::compute(const NodeRecord& nodeRecord, DataStore& dStore)
     const AttrID rightOperandAttr = nodeRecord.inputAttrIDs.at(2);
     const AttrID outputAttrID = nodeRecord.outputAttrIDs.at(0);
 
-    const std::span<const float> leftOperandRawData = dStore.read<float>(leftOperandAttr);
-    const std::size_t leftOperandSize = leftOperandRawData.size();
-    const std::span<const float> rightOperandRawData = dStore.read<float>(rightOperandAttr);
-    const std::size_t rightOperandSize = rightOperandRawData.size();
-    if (leftOperandSize == 0 or rightOperandSize == 0 or leftOperandSize > 4 or rightOperandSize > 4)
+    if (dStore.elementCount(leftOperandAttr) != dStore.elementCount(rightOperandAttr))
     {
-        // later, I can make a node that is more general than this for large scale operations
-        std::cerr << "VectorOp::compute: One of the operands has 0 data to compute with" << std::endl;
+        std::cerr << "[VectorOp::compute] left and right operands must have same count" << std::endl;
         return;
     }
-    std::array<float,4> resultBuffer = {0.0f,0.0f,0.0f,0.0f};
 
     const int vectorOpData = dStore.readSingle<int>(vectorOpAttrID);
     const auto vectorOp = static_cast<const VectorOpType>(vectorOpData);
@@ -141,35 +138,199 @@ void VectorOp::compute(const NodeRecord& nodeRecord, DataStore& dStore)
     }
 }
 
+void VectorOp::computeVectorScale(const NodeRecord& nodeRecord, DataStore& dStore)
+{
+    const AttrID leftOperandAttr = nodeRecord.inputAttrIDs.at(1);
+    const AttrID rightOperandAttr = nodeRecord.inputAttrIDs.at(2);
+    const AttrID outputAttrID = nodeRecord.outputAttrIDs.at(0);
+
+
+
+    const AttributeDataType dataType = dStore.getConcreteType(rightOperandAttr);
+    if (dataType == AttributeDataType::Vec2)
+    {
+
+    }
+    else if (dataType == AttributeDataType::Vec3)
+    {
+
+    }
+    else
+    {
+
+    }
+}
+
+void VectorOp::computeVectorAdd(const NodeRecord &nodeRecord, DataStore &dStore) {}
+void VectorOp::computeVectorSub(const NodeRecord &nodeRecord, DataStore &dStore) {}
+void VectorOp::computeVectorDot(const NodeRecord &nodeRecord, DataStore &dStore) {}
+void VectorOp::computeVectorAngle(const NodeRecord &nodeRecord, DataStore &dStore) {}
+
 void VectorOp::initDataSlotDefaultValue(DataSlot& dataSlot, const AttributeDescriptor& attrDescriptor) const
 {
-    // vec3 assumed.
-    dataSlot.updateConcreteType(AttributeDataType::Vec3);
+    // this method should only be called when node first created
+    assert(dataSlot.getConcreteType() == AttributeDataType::Invalid);
+    if (attrDescriptor.name == kVectorOpTypeAttrName)
+    {
+        dataSlot.updateConcreteType(AttributeDataType::Int);
+        const auto writeBuffer = dataSlot.prepareWrite<int>(1);
+        writeBuffer[0] = static_cast<int>(VectorOpType::VectorScale);
+    }
+    else if (attrDescriptor.name == kLeftOperandAttrName)
+    {
+        dataSlot.updateConcreteType(AttributeDataType::Float);
+    }
+    else
+    {
+        dataSlot.updateConcreteType(AttributeDataType::Vec3);
+    }
 }
 
 bool VectorOp::changeAttributeDataType(const NodeRecord& nodeRecord,
     const AttributeDataType concreteType, const AttrID inputAttr, DataStore& dStore)
 {
-    dStore.updateAttributeType(inputAttr, concreteType);
+    const int attrIndex = nodeRecord.getAttrIndex(inputAttr);
+    assert(attrIndex > -1);
+    if (attrIndex == kVectorOpTypeInputIndex)
+    {
+        // only one allowed type; and nothing to do just exit.
+        assert(concreteType == AttributeDataType::Int);
+        return true;
+    }
+    if (concreteType == AttributeDataType::Float)
+    {
+        // we must convert the VectorOp to VectorScale as that is the only valid configuration
+        // Additionally, we only support float on left operand to keep things simpler.
+        assert(attrIndex == kVectorOpLeftOperandInputIndex);
+        const AttrID vectorOpAttrID = nodeRecord.inputAttrIDs[kVectorOpTypeInputIndex];
+        dStore.writeSingle(vectorOpAttrID, static_cast<int>(VectorOpType::VectorScale));
+        dStore.updateAttributeType(inputAttr, concreteType);
+        return true;
+    }
+    // all other vector operations require both operands to be the same type
+    // we just default to vector add op type.
+    const AttrID vectorOpAttrID = nodeRecord.inputAttrIDs[kVectorOpTypeInputIndex];
+    dStore.writeSingle(vectorOpAttrID, static_cast<int>(VectorOpType::VectorAdd));
+    dStore.updateAttributeType(nodeRecord.inputAttrIDs[kVectorOpLeftOperandInputIndex], concreteType);
+    dStore.updateAttributeType(nodeRecord.inputAttrIDs[kVectorOpRightOperandInputIndex], concreteType);
+    return true;
+}
+
+bool VectorOp::setUnpluggedInputAttrData(const AttrID inputAttrID, const std::span<const std::byte> data,
+    const AttributeDataType concreteType, const NodeRecord& nodeRecord, DataStore& dStore)
+{
+    const int attrIndex = nodeRecord.getAttrIndex(inputAttrID);
+    assert(attrIndex != -1 and
+        "[VectorOp::setUnpluggedAttrData] Node record does not contain an input attribute ID."
+        " This can happen if the caller of NodeHandle passed in input attr ID of different node or output attr id.");
+
+    if (attrIndex == kVectorOpTypeInputIndex)
+    {
+        assert(concreteType == AttributeDataType::Int);
+        // read single because this input should only ever have 1 value that applies to all inputs.
+        const int currentRawVectorOpType = dStore.readSingle<int>(inputAttrID);
+        const auto currentOpType = static_cast<const VectorOpType>(currentRawVectorOpType);
+        const std::span<const int> rawInputOpTypeData = DataSlot::convert<int>(data);
+        assert(rawInputOpTypeData.size() == 1);
+        const auto inputOpType = static_cast<const VectorOpType>(rawInputOpTypeData[0]);
+        if (inputOpType == currentOpType)
+            return true;
+
+        // IF the op type is changing, there is a possibility the other input types must change.
+        // For example: IF there is a change from VectorAdd -> VectorScale; the left or right operand must be a scaler value.
+        // This means we must check if we have any connections. We only allow changes to VectorOpType when there is
+        // no existing connections.
+        for (const AttrID iAid : nodeRecord.inputAttrIDs)
+        {
+            const AttributeRecord& attrRec = dStore.getAttributeRecord(iAid);
+            if (attrRec.hasInputSources())
+                return false;
+        }
+        for (const AttrID oAid : nodeRecord.outputAttrIDs)
+        {
+            const AttributeRecord& attrRec = dStore.getAttributeRecord(oAid);
+            if (attrRec.hasOutputSources())
+                return false;
+        }
+
+        dStore.writeSingle<int>(inputAttrID, rawInputOpTypeData[0]);
+        // we are not done as we need to ensure the types make sense for this operation.
+        const AttrID leftOperandAID = nodeRecord.inputAttrIDs[kVectorOpLeftOperandInputIndex];
+        const AttrID rightOperandAID = nodeRecord.inputAttrIDs[kVectorOpRightOperandInputIndex];
+        const AttrID outputAID = nodeRecord.outputAttrIDs[kVectorOpOutputIndex];
+        // NOTE: after changing the vector op type, we always reset the default values for that vector operation.
+        // For VectorAdd its vec3 + vec3
+        if (inputOpType == VectorOpType::VectorAdd or inputOpType == VectorOpType::VectorSub)
+        {
+            dStore.updateAttributeType(leftOperandAID, AttributeDataType::Vec3);
+            dStore.updateAttributeType(rightOperandAID, AttributeDataType::Vec3);
+            dStore.updateAttributeType(outputAID, AttributeDataType::Vec3);
+        }
+        else if (inputOpType == VectorOpType::VectorScale)
+        {
+            dStore.updateAttributeType(leftOperandAID, AttributeDataType::Float);
+            dStore.updateAttributeType(rightOperandAID, AttributeDataType::Vec3);
+            dStore.updateAttributeType(outputAID, AttributeDataType::Vec3);
+        }
+        else if (inputOpType == VectorOpType::VectorDot or inputOpType == VectorOpType::VectorAngle)
+        {
+            dStore.updateAttributeType(leftOperandAID, AttributeDataType::Vec3);
+            dStore.updateAttributeType(rightOperandAID, AttributeDataType::Vec3);
+            dStore.updateAttributeType(outputAID, AttributeDataType::Float);
+        }
+        else
+            return false;
+    }
+    else if (attrIndex == kVectorOpLeftOperandInputIndex)
+    {
+        // unlike the vector op type input, we do not attempt changing types.
+        const AttrID leftOperandAID = nodeRecord.inputAttrIDs[kVectorOpLeftOperandInputIndex];
+        const AttributeDataType currentType = dStore.getConcreteType(leftOperandAID);
+        if (concreteType != currentType)
+        {
+            std::cerr << "[VectorOp::setUnpluggedInputAttrData] Input data type does not match "
+                         "the current attribute concrete type of left operand" << std::endl;
+            return false;
+        }
+        dStore.writeRawBytes(leftOperandAID, data);
+    }
+    else
+    {
+        const AttrID rightOperandAID = nodeRecord.inputAttrIDs[kVectorOpRightOperandInputIndex];
+        const AttributeDataType currentType = dStore.getConcreteType(rightOperandAID);
+        if (concreteType != currentType)
+        {
+            std::cerr << "[VectorOp::setUnpluggedInputAttrData] Input data type does not match "
+                         "the current attribute concrete type of right operand" << std::endl;
+            return false;
+        }
+        dStore.writeRawBytes(rightOperandAID, data);
+    }
     return true;
 }
 
 const std::span<const AttributeDescriptor> VectorOp::inputAttrSchema() const
 {
+    static constexpr AttributeDataType kSupportedLeftOperandTypes =
+        AttributeDataType::Float | AttributeDataType::Vec2 | AttributeDataType::Vec3 | AttributeDataType::Vec4;
+    static constexpr AttributeDataType kSupportedRightOperandTypes =
+        AttributeDataType::Vec2 | AttributeDataType::Vec3 | AttributeDataType::Vec4;
+
     static constexpr AttributeDescriptor vectorOpTypeIntAttr(
         kVectorOpTypeAttrName, AttributeDataType::Int, AttributeDirection::Input);
     static constexpr AttributeDescriptor leftOperandAttr(
-        kLeftOperandAttrName, kSupportedOperandTypes, AttributeDirection::Input);
+        kLeftOperandAttrName, kSupportedLeftOperandTypes, AttributeDirection::Input);
     static constexpr AttributeDescriptor rightOperandAttr(
-        kRightOperandAttrName, kSupportedOperandTypes, AttributeDirection::Input);
+        kRightOperandAttrName, kSupportedRightOperandTypes, AttributeDirection::Input);
     static constexpr std::array<const AttributeDescriptor, 3> inputAttrs = {vectorOpTypeIntAttr, leftOperandAttr, rightOperandAttr};
     return inputAttrs;
 }
-
 const std::span<const AttributeDescriptor> VectorOp::outputAttrSchema() const
 {
+    static constexpr AttributeDataType kSupportedOutputTypes =
+        AttributeDataType::Float | AttributeDataType::Vec2 | AttributeDataType::Vec3 | AttributeDataType::Vec4;
     static constexpr AttributeDescriptor vectorOpOutputAttr(
-        kVectorOpOutputAttrName, AttributeDataType::Float, AttributeDirection::Output);
+        kVectorOpOutputAttrName, kSupportedOutputTypes, AttributeDirection::Output);
     static constexpr std::array<const AttributeDescriptor, 1> outputAttrs = {vectorOpOutputAttr};
     return outputAttrs;
 }

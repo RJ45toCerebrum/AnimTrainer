@@ -5,6 +5,10 @@ START_NAMESPACE(ATGraph)
 
 static constexpr std::string_view kOutputAttrName("TimeOutput");
 
+// IMPORTANT NOTE:
+// because GetTime and GetFrameTime are raylib libraries that start from InitWindow function
+// this node is not viable in unit tests.
+// TODO: refactor to use timers in Graph rather than relying on raylib functions.
 void TimeNode::compute(const NodeRecord& nodeRecord, DataStore& dStore)
 {
     assert(nodeRecord.outputAttrIDs.size() == 1);
@@ -25,7 +29,14 @@ void TimeNode::initDataSlotDefaultValue(DataSlot& dataSlot, const AttributeDescr
 NDESC bool TimeNode::changeAttributeDataType(const NodeRecord& nodeRecord, const AttributeDataType concreteType,
     const AttrID inputAttr, DataStore& dStore)
 {
-    return true;
+    return false;
+}
+
+bool TimeNode::setUnpluggedInputAttrData(const AttrID inputAttrID, const std::span<const std::byte> data,
+    const AttributeDataType concreteType, const NodeRecord& nodeRecord, DataStore& dStore)
+{
+    assert(false and "We should have never got to this point as TimeNode has no inputs");
+    return false;
 }
 
 // TimeNode's have 0 inputs
