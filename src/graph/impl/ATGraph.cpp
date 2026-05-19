@@ -663,8 +663,11 @@ bool SceneGraph::setUnpluggedInputAttrData(const AttrID attrID, const AttributeD
         return false;
     }
     DataStore dStore(_attributeRecords, _dataSlots);
-    assert(nodeCompute.changeAttributeDataType(nodeRecord, dataType, attrID, dStore) and
-        "Failed to convert the attributes data type");
+    if(not nodeCompute.changeAttributeDataType(nodeRecord, dataType, attrID, dStore))
+    {
+        std::cerr << "[SceneGraph::setUnpluggedInputAttrData] Type mismatch; Failed to convert to requested type" << std::endl;
+        return false;
+    }
     return nodeCompute.setUnpluggedInputAttrData(attrID, data, dataType, nodeRecord, dStore);
 }
 

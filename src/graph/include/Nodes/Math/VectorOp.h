@@ -36,12 +36,14 @@ public:
     NDESC const std::string_view nodeName() const override;
     NDESC const NodeTypeID nodeTypeID() const override;
 
+    //static bool setVectorOperation(class NodeHandle nh, VectorOpType opType);
+
 private:
-    void computeVectorScale(const NodeRecord& nodeRecord, DataStore& dStore);
-    void computeVectorAdd(const NodeRecord& nodeRecord, DataStore& dStore);
-    void computeVectorSub(const NodeRecord& nodeRecord, DataStore& dStore);
-    void computeVectorDot(const NodeRecord& nodeRecord, DataStore& dStore);
-    void computeVectorAngle(const NodeRecord& nodeRecord, DataStore& dStore);
+    static void computeVectorScale(const NodeRecord& nodeRecord, DataStore& dStore);
+    static void computeVectorAdd(const NodeRecord& nodeRecord, DataStore& dStore);
+    static void computeVectorSub(const NodeRecord& nodeRecord, DataStore& dStore);
+    static void computeVectorDot(const NodeRecord& nodeRecord, DataStore& dStore);
+    static void computeVectorAngle(const NodeRecord& nodeRecord, DataStore& dStore);
 };
 
 END_NAMESPACE

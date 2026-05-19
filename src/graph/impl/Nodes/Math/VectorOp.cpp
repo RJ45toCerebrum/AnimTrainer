@@ -1,8 +1,8 @@
 // Created by Tyler on 5/6/2026.
 #include "Nodes/Math/VectorOp.h"
+#include "AttributeTypeHandler.h"
 #include "ATMath.h"
 
-#include <glm/vec2.hpp>
 #include <iostream>
 #include <ostream>
 
@@ -24,118 +24,28 @@ void VectorOp::compute(const NodeRecord& nodeRecord, DataStore& dStore)
     const AttrID vectorOpAttrID = nodeRecord.inputAttrIDs.at(0);
     const AttrID leftOperandAttr = nodeRecord.inputAttrIDs.at(1);
     const AttrID rightOperandAttr = nodeRecord.inputAttrIDs.at(2);
-    const AttrID outputAttrID = nodeRecord.outputAttrIDs.at(0);
-
-    if (dStore.elementCount(leftOperandAttr) != dStore.elementCount(rightOperandAttr))
+    const auto leftSize = dStore.elementCount(leftOperandAttr);
+    const auto rightSize = dStore.elementCount(rightOperandAttr);
+    if (leftSize != rightSize)
     {
-        std::cerr << "[VectorOp::compute] left and right operands must have same count" << std::endl;
+        std::cerr << "[VectorOp::compute] left and right operands must have same count: " <<
+                     '[' << leftSize << "," << rightSize << ']' << std::endl;
         return;
     }
-
     const int vectorOpData = dStore.readSingle<int>(vectorOpAttrID);
     const auto vectorOp = static_cast<const VectorOpType>(vectorOpData);
     if (vectorOp == VectorOpType::VectorAdd)
-    {
-        if (leftOperandSize != rightOperandSize)
-        {
-            // later, I can make a node that is more general than this for large scale operations
-            std::cerr << "VectorOp::compute: Vector operands must have same dimensions and " <<
-               " have dimensions <= 4" << std::endl;
-            return;
-        }
-
-        for (int i = 0; i < leftOperandSize; ++i)
-            resultBuffer[i] = leftOperandRawData[i] + rightOperandRawData[i];
-
-        const std::span<const float> resultData(resultBuffer.data(), leftOperandSize);
-        dStore.write(outputAttrID, resultData);
-    }
+        computeVectorAdd(nodeRecord, dStore);
     else if (vectorOp == VectorOpType::VectorSub)
-    {
-        if (leftOperandSize != rightOperandSize)
-        {
-            // later, I can make a node that is more general than this for large scale operations
-            std::cerr << "VectorOp::compute: Vector subtraction requires both vectors to have same dimensions" << std::endl;
-            return;
-        }
-
-        for (int i = 0; i < leftOperandSize; ++i)
-            resultBuffer[i] = leftOperandRawData[i] - rightOperandRawData[i];
-
-        const std::span<const float> resultData(resultBuffer.data(), leftOperandSize);
-        dStore.write(outputAttrID, resultData);
-    }
+        computeVectorSub(nodeRecord, dStore);
     else if (vectorOp == VectorOpType::VectorScale)
-    {
-        if (leftOperandRawData.size() == 1)
-        {
-            const float scaler = leftOperandRawData[0];
-            for (int i = 0; i < rightOperandRawData.size(); ++i)
-                resultBuffer[i] = scaler * rightOperandRawData[i];
-
-            const std::span<const float> resultData(resultBuffer.data(), rightOperandRawData.size());
-            dStore.write(outputAttrID, resultData);
-        }
-        else if (rightOperandRawData.size() == 1)
-        {
-            const float scaler = rightOperandRawData[0];
-            for (int i = 0; i < leftOperandRawData.size(); ++i)
-                resultBuffer[i] = scaler * leftOperandRawData[i];
-
-            const std::span<const float> resultData(resultBuffer.data(), leftOperandRawData.size());
-            dStore.write(outputAttrID, resultData);
-        }
-        else
-        {
-            std::cerr << "VectorOp::compute: For valid vector scale operation, one of the operands must be of size 1 " << std::endl;
-            return;
-        }
-    }
+        computeVectorScale(nodeRecord, dStore);
     else if (vectorOp == VectorOpType::VectorDot)
-    {
-        if (leftOperandSize != rightOperandSize)
-        {
-            std::cerr << "VectorOp::compute: For valid vector dot operation, both operands must have same dimensions" << std::endl;
-            return;
-        }
-
-        float dotProduct = 0.0f;
-        for (int i = 0; i < leftOperandRawData.size(); ++i)
-            dotProduct += leftOperandRawData[i] * rightOperandRawData[i];
-
-        const std::span<const float> resultData(&dotProduct, 1);
-        dStore.write(outputAttrID, resultData);
-    }
+        computeVectorDot(nodeRecord, dStore);
     else if (vectorOp == VectorOpType::VectorAngle)
-    {
-        if (leftOperandSize != rightOperandSize)
-        {
-            std::cerr << "VectorOp::compute: For valid vector angle operation, both operands must have same dimensions" << std::endl;
-            return;
-        }
-
-        float angle = 0.0f;
-        if (leftOperandSize == 2)
-        {
-            const glm::vec2 left(leftOperandRawData[0], leftOperandRawData[1]);
-            const glm::vec2 right(rightOperandRawData[0], rightOperandRawData[1]);
-            angle = ATMath::angleBetween(left, right);
-        }
-        else if (leftOperandSize == 3)
-        {
-            const glm::vec3 left(leftOperandRawData[0], leftOperandRawData[1], leftOperandRawData[2]);
-            const glm::vec3 right(rightOperandRawData[0], rightOperandRawData[1],rightOperandRawData[2]);
-            angle = ATMath::angleBetween(left, right);
-        }
-        else
-        {
-            const glm::vec4 left(leftOperandRawData[0], leftOperandRawData[1], leftOperandRawData[2],leftOperandRawData[3]);
-            const glm::vec4 right(rightOperandRawData[0], rightOperandRawData[1],rightOperandRawData[2],rightOperandRawData[3]);
-            angle = ATMath::angleBetween(left, right);
-        }
-        const std::span<const float> resultData(&angle, 1);
-        dStore.write(outputAttrID, resultData);
-    }
+        computeVectorAngle(nodeRecord,dStore);
+    else
+        std::cerr << "[VectorOp::compute] Unknown vector operation type" << std::endl;
 }
 
 void VectorOp::computeVectorScale(const NodeRecord& nodeRecord, DataStore& dStore)
@@ -143,28 +53,89 @@ void VectorOp::computeVectorScale(const NodeRecord& nodeRecord, DataStore& dStor
     const AttrID leftOperandAttr = nodeRecord.inputAttrIDs.at(1);
     const AttrID rightOperandAttr = nodeRecord.inputAttrIDs.at(2);
     const AttrID outputAttrID = nodeRecord.outputAttrIDs.at(0);
-
-
-
     const AttributeDataType dataType = dStore.getConcreteType(rightOperandAttr);
-    if (dataType == AttributeDataType::Vec2)
+    attributeVecTypeHandler(dataType, [&]<AttributeTypeConcept T>()
     {
-
-    }
-    else if (dataType == AttributeDataType::Vec3)
-    {
-
-    }
-    else
-    {
-
-    }
+        // left side always scaler
+        const auto leftOperandData = dStore.read<float>(leftOperandAttr);
+        const std::span<const T> rightOperandData = dStore.read<T>(rightOperandAttr);
+        assert(leftOperandData.size() == rightOperandData.size());
+        std::span<T> writeBuffer = dStore.prepareWrite<T>(outputAttrID, leftOperandData.size());
+        for (int i = 0; i < leftOperandData.size(); ++i)
+            writeBuffer[i] = leftOperandData[i] * rightOperandData[i];
+    });
 }
+void VectorOp::computeVectorAdd(const NodeRecord& nodeRecord, DataStore& dStore)
+{
+    const AttrID leftOperandAttr = nodeRecord.inputAttrIDs.at(1);
+    const AttrID rightOperandAttr = nodeRecord.inputAttrIDs.at(2);
+    const AttrID outputAttrID = nodeRecord.outputAttrIDs.at(0);
+    const AttributeDataType dataType = dStore.getConcreteType(rightOperandAttr);
+    attributeVecTypeHandler(dataType, [&]<AttributeTypeConcept T>()
+    {
+        const std::span<const T> leftOperandData = dStore.read<T>(leftOperandAttr);
+        const std::span<const T> rightOperandData = dStore.read<T>(rightOperandAttr);
+        assert(leftOperandData.size() == rightOperandData.size());
+        std::span<T> writeBuffer = dStore.prepareWrite<T>(outputAttrID, leftOperandData.size());
+        for (int i = 0; i < leftOperandData.size(); ++i)
+            writeBuffer[i] = leftOperandData[i] + rightOperandData[i];
+    });
+}
+void VectorOp::computeVectorSub(const NodeRecord& nodeRecord, DataStore& dStore)
+{
+    const AttrID leftOperandAttr = nodeRecord.inputAttrIDs.at(1);
+    const AttrID rightOperandAttr = nodeRecord.inputAttrIDs.at(2);
+    const AttrID outputAttrID = nodeRecord.outputAttrIDs.at(0);
+    const AttributeDataType dataType = dStore.getConcreteType(rightOperandAttr);
+    attributeVecTypeHandler(dataType, [&]<AttributeTypeConcept T>()
+    {
+        const std::span<const T> leftOperandData = dStore.read<T>(leftOperandAttr);
+        const std::span<const T> rightOperandData = dStore.read<T>(rightOperandAttr);
+        assert(leftOperandData.size() == rightOperandData.size());
+        std::span<T> writeBuffer = dStore.prepareWrite<T>(outputAttrID, leftOperandData.size());
+        for (int i = 0; i < leftOperandData.size(); ++i)
+            writeBuffer[i] = leftOperandData[i] - rightOperandData[i];
+    });
+}
+void VectorOp::computeVectorDot(const NodeRecord& nodeRecord, DataStore& dStore)
+{
+    const AttrID leftOperandAttr = nodeRecord.inputAttrIDs.at(1);
+    const AttrID rightOperandAttr = nodeRecord.inputAttrIDs.at(2);
+    const AttrID outputAttrID = nodeRecord.outputAttrIDs.at(0);
+    const AttributeDataType dataType = dStore.getConcreteType(rightOperandAttr);
+    attributeVecTypeHandler(dataType, [&]<AttributeTypeConcept T>()
+    {
+        const std::span<const T> leftOperandData = dStore.read<T>(leftOperandAttr);
+        const std::span<const T> rightOperandData = dStore.read<T>(rightOperandAttr);
+        assert(leftOperandData.size() == rightOperandData.size());
+        std::span<float> writeBuffer = dStore.prepareWrite<float>(outputAttrID, leftOperandData.size());
+        for (int i = 0; i < leftOperandData.size(); ++i)
+            writeBuffer[i] = glm::dot(leftOperandData[i], rightOperandData[i]);
+    });
+}
+void VectorOp::computeVectorAngle(const NodeRecord& nodeRecord, DataStore& dStore)
+{
+    const AttrID leftOperandAttr = nodeRecord.inputAttrIDs.at(1);
+    const AttrID rightOperandAttr = nodeRecord.inputAttrIDs.at(2);
+    const AttrID outputAttrID = nodeRecord.outputAttrIDs.at(0);
+    const AttributeDataType dataType = dStore.getConcreteType(rightOperandAttr);
+    attributeVecTypeHandler(dataType, [&]<AttributeTypeConcept T>()
+    {
+        const std::span<const T> leftOperandData = dStore.read<T>(leftOperandAttr);
+        const std::span<const T> rightOperandData = dStore.read<T>(rightOperandAttr);
+        assert(leftOperandData.size() == rightOperandData.size());
+        std::span<float> writeBuffer = dStore.prepareWrite<float>(outputAttrID, leftOperandData.size());
+        for (int i = 0; i < leftOperandData.size(); ++i)
+        {
+            if (glm::dot(leftOperandData[i], leftOperandData[i]) < 5 * std::numeric_limits<float>::epsilon())
+                writeBuffer[i] = 0.0f;
+            if (glm::dot(rightOperandData[i], rightOperandData[i]) < 5 * std::numeric_limits<float>::epsilon())
+                writeBuffer[i] = 0.0f;
 
-void VectorOp::computeVectorAdd(const NodeRecord &nodeRecord, DataStore &dStore) {}
-void VectorOp::computeVectorSub(const NodeRecord &nodeRecord, DataStore &dStore) {}
-void VectorOp::computeVectorDot(const NodeRecord &nodeRecord, DataStore &dStore) {}
-void VectorOp::computeVectorAngle(const NodeRecord &nodeRecord, DataStore &dStore) {}
+            writeBuffer[i] = ATMath::angleBetween(leftOperandData[i], rightOperandData[i]);
+        }
+    });
+}
 
 void VectorOp::initDataSlotDefaultValue(DataSlot& dataSlot, const AttributeDescriptor& attrDescriptor) const
 {
@@ -204,7 +175,7 @@ bool VectorOp::changeAttributeDataType(const NodeRecord& nodeRecord,
         assert(attrIndex == kVectorOpLeftOperandInputIndex);
         const AttrID vectorOpAttrID = nodeRecord.inputAttrIDs[kVectorOpTypeInputIndex];
         dStore.writeSingle(vectorOpAttrID, static_cast<int>(VectorOpType::VectorScale));
-        dStore.updateAttributeType(inputAttr, concreteType);
+        dStore.updateAttributeType(nodeRecord.inputAttrIDs[kVectorOpLeftOperandInputIndex], AttributeDataType::Float);
         return true;
     }
     // all other vector operations require both operands to be the same type
@@ -231,26 +202,37 @@ bool VectorOp::setUnpluggedInputAttrData(const AttrID inputAttrID, const std::sp
         const int currentRawVectorOpType = dStore.readSingle<int>(inputAttrID);
         const auto currentOpType = static_cast<const VectorOpType>(currentRawVectorOpType);
         const std::span<const int> rawInputOpTypeData = DataSlot::convert<int>(data);
-        assert(rawInputOpTypeData.size() == 1);
+        if(rawInputOpTypeData.size() != 1)
+        {
+            std::cerr << "[VectorOp::setUnpluggedInputAttrData] Vector Op Type input only supports a single operation" << std::endl;
+            return false;
+        }
         const auto inputOpType = static_cast<const VectorOpType>(rawInputOpTypeData[0]);
         if (inputOpType == currentOpType)
             return true;
 
         // IF the op type is changing, there is a possibility the other input types must change.
-        // For example: IF there is a change from VectorAdd -> VectorScale; the left or right operand must be a scaler value.
-        // This means we must check if we have any connections. We only allow changes to VectorOpType when there is
-        // no existing connections.
+        // For example: IF there is a change from VectorAdd -> VectorScale; the left operand must be a scaler value.
+        // This means we must check if we have any connections. Unlike changeAttributeDataType,
+        // setUnpluggedInputAttrData can be called while this nodes other attributes have connections.
+        // What this means is: users must disconnect the nodes then change the op type before performing this operation.
         for (const AttrID iAid : nodeRecord.inputAttrIDs)
         {
-            const AttributeRecord& attrRec = dStore.getAttributeRecord(iAid);
-            if (attrRec.hasInputSources())
+            if (dStore.doesAttrHaveConnection(iAid))
+            {
+                std::cerr << "[VectorOp::setUnpluggedInputAttrData] Can not vector op type "
+                             "while node has connections" << std::endl;
                 return false;
+            }
         }
         for (const AttrID oAid : nodeRecord.outputAttrIDs)
         {
-            const AttributeRecord& attrRec = dStore.getAttributeRecord(oAid);
-            if (attrRec.hasOutputSources())
+            if (dStore.doesAttrHaveConnection(oAid))
+            {
+                std::cerr << "[VectorOp::setUnpluggedInputAttrData] Can not vector op type "
+                "while node has connections" << std::endl;
                 return false;
+            }
         }
 
         dStore.writeSingle<int>(inputAttrID, rawInputOpTypeData[0]);
@@ -258,8 +240,6 @@ bool VectorOp::setUnpluggedInputAttrData(const AttrID inputAttrID, const std::sp
         const AttrID leftOperandAID = nodeRecord.inputAttrIDs[kVectorOpLeftOperandInputIndex];
         const AttrID rightOperandAID = nodeRecord.inputAttrIDs[kVectorOpRightOperandInputIndex];
         const AttrID outputAID = nodeRecord.outputAttrIDs[kVectorOpOutputIndex];
-        // NOTE: after changing the vector op type, we always reset the default values for that vector operation.
-        // For VectorAdd its vec3 + vec3
         if (inputOpType == VectorOpType::VectorAdd or inputOpType == VectorOpType::VectorSub)
         {
             dStore.updateAttributeType(leftOperandAID, AttributeDataType::Vec3);
@@ -311,6 +291,7 @@ bool VectorOp::setUnpluggedInputAttrData(const AttrID inputAttrID, const std::sp
 
 const std::span<const AttributeDescriptor> VectorOp::inputAttrSchema() const
 {
+    // NOTE: only the left operand supports the float for vector scale op
     static constexpr AttributeDataType kSupportedLeftOperandTypes =
         AttributeDataType::Float | AttributeDataType::Vec2 | AttributeDataType::Vec3 | AttributeDataType::Vec4;
     static constexpr AttributeDataType kSupportedRightOperandTypes =
@@ -347,5 +328,6 @@ const NodeTypeID VectorOp::nodeTypeID() const
 {
     return kNodeTypeID;
 }
+
 
 END_NAMESPACE

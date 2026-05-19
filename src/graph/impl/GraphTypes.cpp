@@ -1,6 +1,7 @@
 // Created by Tyler on 5/18/2026.
 #include "GraphTypes.h"
 #include "glm/gtx/quaternion.hpp"
+#include <iostream>
 
 START_NAMESPACE(ATGraph)
 
@@ -252,43 +253,91 @@ NDESC std::size_t DataSlot::elementCount() const
 }
 void DataSlot::freeMemory()
 {
+    // NOTE: we leave _concreteType; this omission is important because the graph does not consider upstream
+    // when checking attribute types. It just looks directly into attributes corresponding data slot type.
+    // Enforcing the input and output attribute types are always equal is a simplification.
+    // Therefore, when claming bytes, we leave _concreteType
     _bytes.clear();
     _bytes.shrink_to_fit();
 }
 
+// NOTE: when writing data, we should only allow writes to output attributes
+// OR UN-plugged input attributes. The DataStore takes care of this logic.
 
 void DataStore::updateAttributeType(const AttrID aid, const AttributeDataType dataType) const
 {
     // graph should have verified the type was supported before getting here.
     assert(isConcreteTypeSupported(_attrs[aid].supportedTypes, dataType));
+    const AttributeRecord& cRecord = _attrs[aid];
+    if (cRecord.hasInputSources())
+    {
+        std::cerr << "[DataStore::updateAttributeType] attempting to update the attribute "
+                     "type of a plugged attribute" << std::endl;
+        return;
+    }
     DataSlot& ds = _data[aid];
     ds.updateConcreteType(dataType);
 }
 void DataStore::writeRawBytes(const AttrID aid, const std::span<const std::byte> data) const
 {
+    const AttributeRecord& cRecord = _attrs[aid];
+    if (cRecord.hasInputSources())
+    {
+        std::cerr << "[DataStore::updateAttributeType] attempting to write data into an input attribute "
+             "that has an upstream source" << std::endl;
+        return;
+    }
     DataSlot& ds = _data[aid];
     ds.writeRawBytes(data);
 }
 void DataStore::initDefaultValue(const AttrID aid) const
 {
+    const AttributeRecord& cRecord = _attrs[aid];
+    if (cRecord.hasInputSources())
+    {
+        std::cerr << "[DataStore::updateAttributeType] attempting to write data into an input attribute "
+             "that has an upstream source" << std::endl;
+        return;
+    }
     DataSlot& ds = _data[aid];
     ds.initDefaultValue();
 }
 NDESC AttributeDataType DataStore::getConcreteType(const AttrID aid) const
 {
-    return _data[aid].getConcreteType();
+    // no need to go upstream as we ensure this and upstream data slot types are always equal.
+    // However, for now I want to assert this to be true for my sanity.
+    const AttributeDataType dataType = _data[aid].getConcreteType();
+    const AttributeRecord& cRecord = _attrs[aid];
+    if (cRecord.hasInputSources())
+    {
+        const DataSlot& upstreamDataSlot = _data[cRecord.upstream];
+        assert(upstreamDataSlot.getConcreteType() == dataType);
+    }
+    return dataType;
 }
 NDESC std::size_t DataStore::elementCount(const AttrID aid) const
 {
+    const AttributeRecord& cRecord = _attrs[aid];
+    if (cRecord.hasInputSources())
+    {
+        const DataSlot& upstreamDataSlot = _data[cRecord.upstream];
+        return upstreamDataSlot.elementCount();
+    }
     return _data[aid].elementCount();
 }
 NDESC const AttributeRecord& DataStore::getAttributeRecord(const AttrID aid) const
 {
     return _attrs[aid];
 }
-NDESC const DataSlot& DataStore::getDataSlot(const AttrID aid) const
+bool DataStore::doesAttrHaveInputSource(const AttrID aid) const
 {
-    return _data[aid];
+    const AttributeRecord& cRecord = _attrs[aid];
+    return cRecord.hasInputSources();
+}
+bool DataStore::doesAttrHaveConnection(const AttrID aid) const
+{
+    const AttributeRecord& cRecord = _attrs[aid];
+    return cRecord.hasSources();
 }
 
 END_NAMESPACE

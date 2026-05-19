@@ -336,7 +336,10 @@ public:
     NDESC AttributeDataType getConcreteType(AttrID aid) const;
     NDESC std::size_t elementCount(AttrID aid) const;
     NDESC const AttributeRecord& getAttributeRecord(AttrID aid) const;
-    NDESC const DataSlot& getDataSlot(AttrID aid) const;
+    /// query if the attribute is an input AND this attribute has an incoming connection
+    NDESC bool doesAttrHaveInputSource(AttrID aid) const;
+    /// query if the attribute has a connection (out (output attr) or in (input attr))
+    NDESC bool doesAttrHaveConnection(AttrID aid) const;
 
     template<AttributeTypeConcept T>
     std::span<const T> read(const AttrID aid) const
@@ -384,6 +387,8 @@ public:
     template<AttributeTypeConcept T>
     std::span<T> prepareWrite(const AttrID aid, const size_t count)
     {
+        const AttributeRecord& cRecord = _attrs[aid];
+        assert(not cRecord.hasInputSources());
         DataSlot& ds = _data[aid];
         return ds.prepareWrite<T>(count);
     }

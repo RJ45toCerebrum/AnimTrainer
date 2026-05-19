@@ -411,24 +411,34 @@ TEST_F(GraphTestFixture, SetUnplugAttrTest)
     const glm::vec3 expectedResult = rfArr[0] * rVecArr[0] + rVecArr[1];
     graphRef.evaluate();
 
-    const auto outAttrIDOpt = rootHandle.fromNodeAttributeIndex(0, AttributeDirection::Output);
-    EXPECT_TRUE(outAttrIDOpt.has_value());
-    const AttrID outputAttrID = outAttrIDOpt.value();
-    const auto rawData = inputNodeHandle.getData<glm::vec3>(outputAttrID);
+    const auto rawData = inputNodeHandle.getOutputAttrData<glm::vec3>(0);
     EXPECT_TRUE(rawData.size() == 1 and rawData[0] == expectedResult);
 
-    constexpr std::string_view downstreamOpNode = "VectorOp[1]";
-    NodeHandle nh = graphRef.getNodeHandle(downstreamOpNode);
-    EXPECT_TRUE(nh.isValid());
-
-    const auto inAttrIDOpt = nh.fromNodeAttributeIndex(1, AttributeDirection::Input);
+    // rootHandle -> inputNodeHandle
+    const auto inAttrIDOpt = inputNodeHandle.fromNodeAttributeIndex(1, AttributeDirection::Input);
     EXPECT_TRUE(inAttrIDOpt.has_value());
-
     const AttrID inputAttrID = inAttrIDOpt.value();
+    const auto outputAttrIDOpt = rootHandle.fromNodeAttributeIndex(0, AttributeDirection::Output);
+    EXPECT_TRUE(outputAttrIDOpt.has_value());
+    const AttrID outputAttrID = outputAttrIDOpt.value();
+
     // below should fail because I have params swapped.
     EXPECT_FALSE(graphRef.disconnect(inputAttrID, outputAttrID));
     EXPECT_TRUE(graphRef.disconnect(outputAttrID, inputAttrID));
+
     EXPECT_TRUE(rootHandle.setUnpluggedInputByIndex<int>(0, static_cast<int>(VectorOp::VectorOpType::VectorDot)));
+    EXPECT_TRUE(rootHandle.setUnpluggedInputByIndex<glm::vec3>(1, rVecArr[0]));
+    EXPECT_TRUE(rootHandle.setUnpluggedInputByIndex<glm::vec3>(2, rVecArr[1]));
+    const float expectDotProduct = glm::dot(rVecArr[0], rVecArr[1]);
+
+    EXPECT_TRUE(graphRef.connect(outputAttrID, inputAttrID) == GraphConnectionQueryInfo::IsConnected);
+    EXPECT_TRUE(inputNodeHandle.setUnpluggedInputByIndex<glm::vec3>(2, rVecArr[1]));
+    const glm::vec3 secondExpectedResult = expectDotProduct * rVecArr[1];
+
+    graphRef.evaluate();
+
+    const auto rawData2 = inputNodeHandle.getOutputAttrData<glm::vec3>(0);
+    EXPECT_TRUE(rawData2.size() == 1 and rawData2[0] == secondExpectedResult);
 }
 
 END_NAMESPACE
